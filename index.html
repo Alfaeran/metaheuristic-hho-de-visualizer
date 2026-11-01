@@ -853,41 +853,136 @@
     // true = pakai warna terang. rasio 0 -> seluruhnya gelap, 1 -> seluruhnya terang.
     function dither(x, y, rasio) { return rasio * 16 > bayer4(x, y); }
 
-    /* --- Sprite: ELANG HARRIS (kandidat solusi HHO), gaya arcade outline tebal ---
-       Siluet sengaja menegaskan ciri elang: paruh kuning bengkok, tiga jari bulu
-       di ujung tiap sayap, dan ekor kipas. Tanpa itu, siluetnya terbaca kelelawar. */
+    /* --- Sprite: ELANG HARRIS (kandidat solusi HHO) ---
+       Siluet disusun mengikuti referensi pixel-art elang terbang tampak samping:
+       dua sayap terangkat membentuk V, kepala kecil + paruh kuning di kanan,
+       dada chestnut, pita putih di tepi sayap, cakar kuning di bawah badan.
+       Palet Harris hawk (coklat + bahu chestnut), bukan bald eagle.
+       Huruf: o outline, d/m/l coklat gelap-mid-terang, c/C chestnut,
+              w putih, y kuning, k abu gelap, r rim light. --- */
     const SPR_HAWK = [
-      "...B....BB....B...",
-      "..BRB..BRRB..BRB..",
-      ".BRRRBBRRRRBBRRRB.",
-      "BRRRRRRRDDRRRRRRRB",
-      "BRRRRRRDKKDRRRRRRB",
-      ".BBRRRDDKKDDRRRBB.",
-      "...BBRDDWWDDRBB...",
-      ".....BDDWWDDB.....",
-      "......BDYYDB......",
-      ".......BYYB.......",
-      "......BRDDRB......",
-      ".....BRRBBRRB....."
+      "....oo..........................",
+      "...ollo...............oo........",
+      "...olmmo.............odmo.......",
+      "...olmmmo...........odmmo.......",
+      "....ommmmoo........odmmmo.......",
+      "....olmmmmmmoo....odmmmmo.......",
+      ".....ommmmmmmmmo.odmmmmo........",
+      ".....olmmmmmmmmmodmmmmdo........",
+      "......ommmmmmmmmmmmmmdo.........",
+      "......olmmmmmmmmmmmmdo..oooo....",
+      ".......ommmmmmmmmmmmo..odmmdo...",
+      ".......owwwwmmmmmmmmo.odmlllmo..",
+      "........owwwwwwcCCCcoodmllookmo.",
+      ".........owwwwwcCCCCcommloookyo.",
+      "..........ooooocCCCCCcmmlooooo..",
+      "...............ocCCCCccmmo......",
+      "...............ocCCCCcmo........",
+      "................oyoyyoo.........",
+      "...............oyyoyyo..........",
+      "................oo.oo..........."
     ];
-    // Pose kedua: menukik (sayap terlipat) - dipakai saat elang masuk mode dive.
+    // GLIDE: sayap terentang mendatar, untuk gerak lambat / fase menjelajah.
+    const SPR_HAWK_GLIDE = [
+      "................................",
+      "................................",
+      "................................",
+      "..oooo..........................",
+      ".ommmmoo................oo......",
+      ".olmmmmmmoooo..........odmo.....",
+      "..ommmmmmmmmmmoooo....odmmo.....",
+      "...ommmmmmmmmmmmmmmoodmmmdo.....",
+      "....owwwwmmmmmmmmmmmmmmmdo.oooo.",
+      ".....owwwwwwcCCCCcmmmmmdo.odmmdo",
+      "......oooooocCCCCCcmmmmoodmlllmo",
+      "............ocCCCCcmmmoodmlookmo",
+      "............ocCCCCcmmoommlookyo.",
+      ".............oyoyyoo..oooooooo..",
+      ".............oyyoyyo............",
+      "..............oo.oo.............",
+      "................................",
+      "................................",
+      "................................",
+      "................................"
+    ];
+    // DIVE: sayap terlipat rapat, tubuh miring menukik (rapid dive / Levy).
     const SPR_HAWK_DIVE = [
-      ".B..B........B..B.",
-      "BRBBRB......BRBBRB",
-      "BRRRRRB....BRRRRRB",
-      ".BRRRRRBBBBRRRRRB.",
-      "..BRRRRDDDDRRRRB..",
-      "...BRRDWWWWDRRB...",
-      "....BDDWKKWDDB....",
-      ".....BDWKKWDB.....",
-      "......BDYYDB......",
-      ".......BYYB.......",
-      "......BRRRRB......",
-      ".....BB.BB.BB....."
+      "................................",
+      "..oo............................",
+      "..olo...........................",
+      "..olmo..........................",
+      "...olmmo........................",
+      "...odmmmo.......................",
+      "....odmmmmo.....................",
+      "....oommmmmo....................",
+      ".....odmmmmmmo..................",
+      ".....owwmmmmmmo.................",
+      "......owwcCCCcmo................",
+      "......oocCCCCcmmo...............",
+      "........ocCCCCcmmo..............",
+      ".........ocCCCcmmmo..oooo.......",
+      "..........occccmmmoodmmdo.......",
+      "...........oyyommmoodmllmo......",
+      "...........oyyoommoodmllokmo....",
+      "............ooo.ooooommlookyo...",
+      "...................ooooooooo....",
+      "................................"
     ];
-    const HAWK_PAL = { B: P.outline, R: P.orange, D: P.brown, K: P.dark, W: P.white, Y: P.yellow };
-    // Varian warna sesuai mode: bulu badan diwarnai ulang, outline & paruh tetap.
-    function hawkPal(col) { return { B: P.outline, R: col, D: P.brown, K: P.dark, W: P.white, Y: P.yellow }; }
+    // STRIKE: cakar terjulur ke depan, sayap mengerem (hard besiege).
+    const SPR_HAWK_STRIKE = [
+      "..oo........................oo..",
+      ".ollo......................odmo.",
+      ".olmmo....................odmmo.",
+      "..olmmoo................oodmmo..",
+      "...olmmmmoo..........oodmmmmo...",
+      "....olmmmmmmoo......odmmmmmo....",
+      ".....oommmmmmmmoooodmmmmmdo.....",
+      ".......owwwwmmmmmmmmmmmmdo......",
+      "........owwwwwcCCCCcmmmdo.oooo..",
+      ".........ooooocCCCCCcmmoodmmdo..",
+      "..............ocCCCCCcmoodmllmo.",
+      "..............ocCCCCCcmoodmlokmo",
+      "..............oocCCCCcmoommlokyo",
+      "...............ocCCCccmoooooooo.",
+      "..............oyoooyo...........",
+      ".............oyyo.oyyo..........",
+      "............oyo....oyo..........",
+      "............oo......oo..........",
+      "................................",
+      "................................"
+    ];
+    // PERCH: bertengger, sayap terlipat, tegak (eksplorasi saat mengintai).
+    const SPR_HAWK_PERCH = [
+      "................................",
+      "................................",
+      "..................oooo..........",
+      ".................odmmdo.........",
+      "................odmlllmo........",
+      "...............odmllookmo.......",
+      "...............ommlookyo........",
+      "..............oommooooo.........",
+      ".............odmmmmo............",
+      "............odmmmmmmo...........",
+      "...........odmmmmmmmmo..........",
+      "..........odmmmmmmmmmo..........",
+      "..........ocCCCCCCCcmo..........",
+      "..........ocCCCCCCCcmo..........",
+      "..........oocCCCCCcmo...........",
+      "...........owwwwwwwo............",
+      "...........owddddwo.............",
+      "............oyoyo...............",
+      "............oyoyo...............",
+      ".........ooooooooooo............"
+    ];
+    const HAWK_FRAMES = { fly: SPR_HAWK, glide: SPR_HAWK_GLIDE, dive: SPR_HAWK_DIVE,
+                          strike: SPR_HAWK_STRIKE, perch: SPR_HAWK_PERCH };
+    const HAWK_PAL = {
+      o: '#0B0B10', d: '#3B2418', m: '#5A3A24', l: '#7A5034',
+      c: '#8B3A1E', C: '#B5522A', w: '#F2F2F2', y: '#F2C230',
+      k: '#2A2A2A', r: '#E8D8C0'
+    };
+    // Warna bulu TIDAK berubah per mode; mode ditandai aura di sekitar siluet.
+    function hawkPal() { return HAWK_PAL; }
 
     /* --- Sprite: KELINCI (solusi terbaik / X_rabbit) ---
        Ciri kunci: telinga panjang berisi pink, mata di samping kepala (bukan
@@ -940,6 +1035,49 @@
     ];
     function blobPal(c1, c2) {
       return { B: P.outline, L: c2, G: c1, W: P.white, K: P.dark };
+    }
+
+    /* Pemetaan mode HHO ke pose & aura. Warna bulu tidak pernah berubah; mode
+       ditandai lewat pose dan cincin aura, sesuai [1]:
+         explore  |E|>=1          -> bertengger / meluncur, aura biru
+         soft     r>=.5,|E|>=.5   -> terbang mengitari,     aura kuning
+         hard     r>=.5,|E|<.5    -> menyergap,             aura oranye
+         *Dive    r<.5            -> menukik + jejak Levy,  aura merah          */
+    const HAWK_MODE = {
+      explore:  { pose: 'glide',  aura: '#41a6f6' },
+      soft:     { pose: 'fly',    aura: '#ffcd75' },
+      hard:     { pose: 'strike', aura: '#ef7d57' },
+      softDive: { pose: 'dive',   aura: '#b13e53' },
+      hardDive: { pose: 'dive',   aura: '#b13e53' }
+    };
+    function hawkLook(mode) { return HAWK_MODE[mode] || HAWK_MODE.explore; }
+
+    // Menggambar elang dengan aura tipis di sekeliling siluet agar terbaca di
+    // atas lanskap gelap maupun terang.
+    // Cache siluet aura per (pose, warna, skala). Menggambar ulang siluet empat
+    // kali per elang tiap frame terlalu mahal (terukur 36fps dengan 14 elang);
+    // dengan cache ini aura cukup satu drawImage.
+    const auraCache = {};
+    function auraSprite(map, pose, warna, px) {
+      const k = pose + warna + px;
+      if (auraCache[k]) return auraCache[k];
+      const w = (map[0].length + 2) * px, h = (map.length + 2) * px;
+      const oc = document.createElement('canvas'); oc.width = w; oc.height = h;
+      const simpan = ctx; ctx = oc.getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const pal = {}; for (const c in HAWK_PAL) pal[c] = warna;
+      // siluet digeser 4 arah -> membentuk cincin setebal 1 piksel sprite
+      sprite(map, 0, px, px, pal); sprite(map, 2 * px, px, px, pal);
+      sprite(map, px, 0, px, pal); sprite(map, px, 2 * px, px, pal);
+      ctx = simpan;
+      auraCache[k] = oc; return oc;
+    }
+    function drawHawk(cx, cy, px, mode) {
+      const look = hawkLook(mode);
+      const map = HAWK_FRAMES[look.pose] || SPR_HAWK;
+      const o = spriteOrigin(map, cx, cy, px);
+      ctx.drawImage(auraSprite(map, look.pose, look.aura, px), o.x - px, o.y - px);
+      sprite(map, o.x, o.y, px, HAWK_PAL);
+      return o;
     }
 
     // Titik kiri-atas agar sprite TERPUSAT di (cx, cy). Fungsi murni supaya bisa
@@ -1199,7 +1337,7 @@
        ========================================================================= */
     const UI = {
       playing: false, speed: 6, acc: 0, slide: 0, t0: performance.now(), time: 0,
-      dbg: false, slow: false
+      dbg: false, slow: false, sheet: false
     };
     const el = (id) => document.getElementById(id);
     const dyn = el('dyn');
@@ -1670,7 +1808,9 @@
           const hy = rby - 40 + Math.sin(a) * radius * 0.42;
           // Bulu elang tetap rufous di semua fase; warna fase ditandai lewat garis serang & label.
           const col = s.phase === 0 ? P.orange : (s.phase === 1 ? P.yellow : P.red);
-          spriteAt(s.phase === 2 ? SPR_HAWK_DIVE : SPR_HAWK, hx, hy, 4, hawkPal(col));
+          // Babak cerita: mengintai -> mengepung -> menukik.
+          const modeFase = ['explore', 'soft', 'softDive'][s.phase];
+          drawHawk(hx, hy, 4, modeFase);
           if (s.phase === 2) line(hx, hy, rbx, rby + 12, P.red, 1);
         }
         const lbl = ['1. MENYEBAR & MENGINTAI (|E| >= 1)',
@@ -1750,11 +1890,18 @@
             }
           }
         }
-        // elang: warna sesuai mode
+        // Elang digambar sebagai sprite ber-pose sesuai modenya. Dengan populasi
+        // besar sprite penuh terlalu padat, jadi di atas 14 ekor dipakai penanda
+        // kotak berwarna mode supaya tetap terbaca dan tetap ~60fps.
+        const spritePenuh = Hs.X.length <= 14;
         for (let i = 0; i < Hs.X.length; i++) {
           const p = toScreen(Hs.X[i], box);
-          rect(p[0] - 4, p[1] - 4, 8, 8, MODE_COL[Hs.mode[i]]);
-          frame(p[0] - 5, p[1] - 5, 10, 10, P.bg, 1);
+          if (spritePenuh) {
+            drawHawk(p[0], p[1], 2, Hs.mode[i]);
+          } else {
+            rect(p[0] - 4, p[1] - 4, 8, 8, MODE_COL[Hs.mode[i]]);
+            frame(p[0] - 5, p[1] - 5, 10, 10, P.bg, 1);
+          }
         }
         const rp = toScreen(Hs.rabbit, box);
         spriteAt(SPR_RABBIT, rp[0], rp[1], 3, RAB_PAL);
@@ -2463,7 +2610,7 @@
       }
       else if (e.key === 'Enter' && UI.slide === 0) gotoSlide(1);
       else if (e.key === 'f' || e.key === 'F') el('bFull').click();
-      else if (e.key === 's' || e.key === 'S') stepSlide();
+      else if (e.key === 's' || e.key === 'S') UI.sheet = !UI.sheet;   // lembar sprite
       else if (e.key === 'r' || e.key === 'R') resetSlide();
       else if (e.key === 'd' || e.key === 'D') UI.dbg = !UI.dbg;
     });
@@ -2493,9 +2640,47 @@
         while (UI.acc >= 1 && guard < 60) { S.step(); UI.acc -= 1; guard++; }
       }
       hotspots = [];
-      if (UI.slide === 0) S.draw();
+      if (UI.sheet) { drawSpriteSheet(); }
+      else if (UI.slide === 0) S.draw();
       else { slideHead(S.title, S.sub, UI.slide); S.draw(); }
       requestAnimationFrame(loop);
+    }
+
+    /* ---------------------------------------------------------------------------
+       LEMBAR SPRITE (tekan S) - memeriksa keterbacaan tiap frame di latar GELAP
+       dan TERANG sekaligus, karena sprite dipakai di atas lanskap keduanya.
+       ------------------------------------------------------------------------- */
+    function drawSpriteSheet() {
+      rect(0, 0, W, 720, P.bg);
+      txts('LEMBAR SPRITE  (S untuk kembali)', 20, 16, 14, P.yellow);
+      const frames = [['fly', 'FLY'], ['glide', 'GLIDE'], ['dive', 'DIVE'],
+                      ['strike', 'STRIKE'], ['perch', 'PERCH']];
+      // dua jalur: latar gelap di atas, latar terang di bawah
+      [[60, P.bg, 'LATAR GELAP'], [390, '#94b0c2', 'LATAR TERANG']].forEach(function (jalur) {
+        const y0 = jalur[0];
+        rect(20, y0, W - 40, 300, jalur[1]);
+        frame(20, y0, W - 40, 300, P.navy, 2);
+        txt(jalur[2], 30, y0 + 8, 8, jalur[1] === P.bg ? P.gray : P.dark);
+        frames.forEach(function (f, i) {
+          const cx = 130 + i * 190, cy = y0 + 150;
+          const map = HAWK_FRAMES[f[0]];
+          spriteAt(map, cx, cy, 5, HAWK_PAL);
+          txt(f[1], cx, y0 + 262, 9, jalur[1] === P.bg ? P.white : P.dark, 'center');
+          txt(map[0].length + 'x' + map.length, cx, y0 + 278, 7,
+              jalur[1] === P.bg ? P.gray : P.navy, 'center');
+        });
+        // kelinci + blob di kolom terakhir
+        spriteAt(SPR_RABBIT, 1090, y0 + 110, 5, RAB_PAL);
+        txt('KELINCI', 1090, y0 + 180, 8, jalur[1] === P.bg ? P.white : P.dark, 'center');
+        spriteAt(SPR_BLOB, 1200, y0 + 110, 5, blobPal(P.green, P.lime));
+        txt('BLOB', 1200, y0 + 180, 8, jalur[1] === P.bg ? P.white : P.dark, 'center');
+      });
+      // baris aura per mode
+      txt('AURA PER MODE:', 20, 700, 8, P.gray);
+      ['explore', 'soft', 'hard', 'softDive', 'hardDive'].forEach(function (m, i) {
+        rect(150 + i * 120, 698, 12, 12, hawkLook(m).aura);
+        txt(m, 168 + i * 120, 700, 7, P.gray);
+      });
     }
 
     /* ===========================================================================
@@ -2769,17 +2954,21 @@
         if (typeof spriteOrigin !== 'function') {
           salah.push('spriteOrigin belum ada');
         } else {
-          // sprite 18x12 @4px -> lebar 72, tinggi 48 -> pusat di (36,24)
+          // Dihitung dari ukuran sprite sebenarnya, supaya test tidak perlu
+          // diubah tiap kali desain sprite diganti.
+          const wH = SPR_HAWK[0].length * 4, hH = SPR_HAWK.length * 4;
           const a = spriteOrigin(SPR_HAWK, 100, 100, 4);
-          if (a.x !== 100 - 36 || a.y !== 100 - 24)
-            salah.push('elang: dapat (' + a.x + ',' + a.y + '), harusnya (64,76)');
+          if (a.x !== 100 - wH / 2 || a.y !== 100 - hH / 2)
+            salah.push('elang: dapat (' + a.x + ',' + a.y + '), harusnya (' +
+                       (100 - wH / 2) + ',' + (100 - hH / 2) + ')');
           // sprite 12x12 @4px -> 48x48 -> pusat (24,24)
+          const wR = SPR_RABBIT[0].length * 4, hR = SPR_RABBIT.length * 4;
           const b = spriteOrigin(SPR_RABBIT, 200, 200, 4);
-          if (b.x !== 176 || b.y !== 176)
+          if (b.x !== 200 - wR / 2 || b.y !== 200 - hR / 2)
             salah.push('kelinci: dapat (' + b.x + ',' + b.y + ')');
           // skala berbeda harus ikut terhitung
-          const c = spriteOrigin(SPR_BLOB, 0, 0, 2);   // 12x10 @2 -> 24x20
-          if (c.x !== -12 || c.y !== -10)
+          const c = spriteOrigin(SPR_BLOB, 0, 0, 2);
+          if (c.x !== -SPR_BLOB[0].length || c.y !== -SPR_BLOB.length)
             salah.push('blob @2px: dapat (' + c.x + ',' + c.y + ')');
         }
         T('R11 sprite terpusat otomatis', salah.length === 0,
