@@ -697,6 +697,20 @@
     // habis, dan kembali false untuk kasus berikutnya.
     function caseDoneAfterReset() { return false; }
     function caseDoneAfterFinish() { return true; }
+
+    // Slide 08: pembagian waktu animasi "vektor -> jadwal". Fungsi murni supaya
+    // urutan fasenya bisa diuji tanpa DOM. Satu siklus 12 detik, lalu berulang
+    // sendiri agar penonton bisa mengulang tanpa menekan tombol apa pun.
+    const ENC_DUR = [3, 3, 3, 3];     // durasi fase 0..3 (detik)
+    function encodingPhase(t) {
+      const total = ENC_DUR.reduce(function (a, b) { return a + b; }, 0);
+      let sisa = ((t % total) + total) % total;   // berulang, aman untuk t negatif
+      for (let i = 0; i < ENC_DUR.length; i++) {
+        if (sisa < ENC_DUR[i]) return { fase: i, maju: sisa / ENC_DUR[i] };
+        sisa -= ENC_DUR[i];
+      }
+      return { fase: ENC_DUR.length - 1, maju: 1 };
+    }
     /* ==ALGO-END== */
 
     /* ===========================================================================
@@ -1824,24 +1838,35 @@
         const cas = genCase(2468, 8, 3);
         const rng = makeRNG(13);
         const x = []; for (let i = 0; i < cas.N; i++) x.push(rng.rand());
-        ST.s8 = { cas: cas, x: x, rng: rng, hi: -1 };
+        ST.s8 = { cas: cas, x: x, rng: rng, hi: -1, t: 0 };
         mkBtn('VEKTOR BARU', function () {
           const st = ST.s8; st.x = [];
           for (let i = 0; i < st.cas.N; i++) st.x.push(st.rng.rand());
+          st.t = 0;   // ulangi animasi dari awal untuk vektor baru
         });
       },
+      update(dt) { ST.s8.t += dt; },
       draw() {
         const s = ST.s8, cas = s.cas, M = cas.M;
         const lists = decodeRandomKey(s.x, cas);
         const res = evalSchedule(lists, cas);
+        // Animasi berjalan sendiri: fase 0 key muncul satu per satu, fase 1 rumus,
+        // fase 2 task terbang ke VM, fase 3 Gantt terisi. Lalu berulang.
+        const ph = encodingPhase(s.t);
+        const tampil = function (fase) { return ph.fase > fase ? 1 : (ph.fase === fase ? ph.maju : 0); };
+        const aktif = function (fase) { return ph.fase === fase; };
 
         // ===== 1. vektor kontinu =====
         panel(40, 84, W - 80, 150, P.cyan);
         txt('1. VEKTOR POSISI (KONTINU, DOMAIN [0,1) )', 60, 96, 10, P.cyan);
         const cw = (W - 160) / cas.N;
+        const keyMuncul = Math.ceil(tampil(0) * cas.N);
         for (let i = 0; i < cas.N; i++) {
           const x0 = 60 + i * cw;
-          rect(x0, 124, cw - 8, 44, P.dark); frame(x0, 124, cw - 8, 44, P.blue, 2);
+          if (i >= keyMuncul) { rect(x0, 124, cw - 8, 44, P.bg); frame(x0, 124, cw - 8, 44, P.navy, 2); continue; }
+          const disorot = aktif(0) && i === keyMuncul - 1;
+          rect(x0, 124, cw - 8, 44, P.dark);
+          frame(x0, 124, cw - 8, 44, disorot ? P.white : P.blue, 2);
           txt('x' + i, x0 + 8, 130, 7, P.gray);
           txt(s.x[i].toFixed(3), x0 + 8, 148, 8, P.white);
           // bar tinggi nilai key
@@ -1853,8 +1878,11 @@
         txt('D = N = ' + cas.N + ' DIMENSI (1 KEY PER TASK)', 60, 212, 8, P.gray);
 
         // ===== 2. rumus pemetaan =====
-        panel(40, 250, 560, 130, P.yellow);
+        panel(40, 250, 560, 130, aktif(1) ? P.white : P.yellow);
         txt('2. RUMUS PEMETAAN', 60, 262, 10, P.yellow);
+        if (aktif(1)) {   // penunjuk berjalan di sepanjang rumus
+          rect(60, 302, (W - 700) * ph.maju, 2, P.white);
+        }
         txt('vm_i = floor( x_i * M )      , M = ' + M, 60, 288, 9, P.white);
         txt('URUTAN DI VM = SORT NAIK BERDASAR x_i', 60, 310, 9, P.white);
         txt('-> SELALU VALID: SETIAP TASK TEPAT 1 VM', 60, 338, 8, P.lime);
@@ -1864,14 +1892,25 @@
         // ===== 3. hasil pembagian ke VM =====
         panel(620, 250, W - 660, 130, P.lime);
         txt('3. HASIL: TASK PER VM', 640, 262, 10, P.lime);
+        // Task "terbang" dari deretan key di atas menuju VM tujuannya.
+        const taskMuncul = Math.ceil(tampil(2) * cas.N);
+        let urut = 0;
         for (let j = 0; j < M; j++) {
           const y = 288 + j * 28;
           txt('VM' + j, 640, y, 8, [P.cyan, P.lime, P.purple][j % 3]);
           let tx = 700;
           for (const i of lists[j]) {
-            rect(tx, y - 4, 44, 20, [P.cyan, P.lime, P.yellow, P.orange, P.purple, P.teal, P.green, P.red][i % 8]);
-            txt('T' + i, tx + 6, y + 1, 7, P.bg);
-            tx += 50;
+            const warna = [P.cyan, P.lime, P.yellow, P.orange, P.purple, P.teal, P.green, P.red][i % 8];
+            if (urut < taskMuncul) {
+              rect(tx, y - 4, 44, 20, warna);
+              txt('T' + i, tx + 6, y + 1, 7, P.bg);
+            } else if (urut === taskMuncul && aktif(2)) {
+              // satu blok sedang melayang dari posisi key-nya ke slot VM
+              const sisa = (tampil(2) * cas.N) - taskMuncul;
+              const ax = 60 + i * cw, ay = 200;   // mulai dari bawah kotak key, bukan menimpanya
+              rect(ax + (tx - ax) * sisa, ay + (y - 4 - ay) * sisa, 44, 20, warna);
+            }
+            tx += 50; urut++;
           }
           if (!lists[j].length) txt('(KOSONG)', 700, y, 7, P.gray);
         }
@@ -1879,11 +1918,21 @@
         // ===== 4. Gantt hasil =====
         panel(40, 398, W - 80, 210, P.navy);
         txt('4. JADWAL (GANTT) & MAKESPAN', 60, 410, 10, P.teal);
-        drawGantt({ x: 120, y: 440, w: W - 220, h: 110 }, res, cas, { label: '', showVal: false });
+        // Gantt tumbuh dari kiri ke kanan: skala waktu diperbesar bertahap.
+        const isiGantt = tampil(3);
+        if (isiGantt > 0) {
+          drawGantt({ x: 120, y: 440, w: W - 220, h: 110 }, res, cas,
+            { label: '', showVal: false, tmax: res.makespan / Math.max(0.02, isiGantt) });
+        } else {
+          for (let j = 0; j < M; j++) rect(120, 440 + j * 38, W - 220, 2, P.navy);
+        }
         txt('MAKESPAN = ' + res.makespan.toFixed(3) + ' s', 120, 566, 10, P.yellow);
         txt('TUNGGU RATA2 = ' + res.avgWait.toFixed(3) + ' s', 480, 566, 9, P.gray);
         txt('UTILISASI = ' + (res.util * 100).toFixed(1) + '%', 820, 566, 9, P.gray);
         txt('INILAH NILAI YANG DIMINIMASI HHO & DE', 120, 588, 8, P.lime);
+        const namaFase = ['BACA KEY', 'PETAKAN KE VM', 'BAGI TASK', 'SUSUN JADWAL'];
+        txt('> ' + namaFase[ph.fase], W - 120, 588, 8, P.white, 'right');
+        bar(W - 320, 604, 200, 10, (ph.fase + ph.maju) / 4, P.teal);
         hot(120, 440, W - 220, 130, 'Setiap blok = satu task pada VM tertentu. Panjang blok = panjang task / kecepatan VM. Garis putih = makespan, yaitu VM yang paling akhir selesai.');
       }
     });
@@ -2345,6 +2394,50 @@
         T('R5 state slide 07 bertahan', bawaanBenar && bertahan && spreadBersih,
           'bawaan ' + (bawaanBenar ? 'ok' : 'SALAH') + ', bertahan ' + (bertahan ? 'ok' : 'SALAH') +
           ' (slowOn=' + lagi.slowOn + ' F=' + lagi.F + ' CR=' + lagi.CR + ' NP=' + lagi.np + ')');
+      })();
+
+      // R7: narasi tiap slide maksimal 2 kalimat (syarat "teks seminim mungkin").
+      //     Penanda sitasi [n] tidak dihitung sebagai kalimat.
+      (function () {
+        const langgar = [];
+        for (let i = 0; i < SLIDES.length; i++) {
+          const sub = SLIDES[i].sub || '';
+          const bersih = sub.replace(/\[\d+\]/g, '').trim();
+          const kalimat = bersih.split(/[.;]\s+|[.;]$/)
+            .map(function (x) { return x.trim(); })
+            .filter(function (x) { return x.length > 3; });
+          if (kalimat.length > 2) langgar.push('slide ' + i + ': ' + kalimat.length + ' kalimat');
+        }
+        T('R7 narasi maksimal 2 kalimat', langgar.length === 0,
+          langgar.join('; ') || SLIDES.length + ' slide diperiksa, semua <= 2 kalimat');
+      })();
+
+      // R8: slide 08 (random key encoding) harus beranimasi sendiri, bukan diam
+      //     sampai tombol ditekan. Diuji lewat fungsi fase murni yang dipakai slide.
+      (function () {
+        const salah = [];
+        if (typeof encodingPhase !== 'function') {
+          salah.push('encodingPhase belum ada');
+        } else {
+          // satu siklus 12 detik: fase 0 [0,3) 1 [3,6) 2 [6,9) 3 [9,12)
+          const f0 = encodingPhase(0), f1 = encodingPhase(3.5), f2 = encodingPhase(6.5), f3 = encodingPhase(9.5);
+          // fase harus maju seiring waktu
+          if (!(f0.fase === 0 && f1.fase === 1 && f2.fase === 2 && f3.fase === 3))
+            salah.push('urutan fase salah: ' + [f0.fase, f1.fase, f2.fase, f3.fase].join(','));
+          // progres di dalam fase harus bergerak, bukan diam
+          if (!(encodingPhase(0.1).maju < encodingPhase(1.5).maju))
+            salah.push('progres tidak bergerak dalam satu fase');
+          // harus berulang supaya penonton bisa melihat lagi tanpa menekan apa pun
+          const putar = encodingPhase(0.5), ulang = encodingPhase(0.5 + 12);
+          if (putar.fase !== ulang.fase) salah.push('siklus tidak berulang');
+          // maju selalu di rentang [0,1]
+          for (const t of [0, 0.7, 3.2, 6.9, 11.9]) {
+            const m = encodingPhase(t).maju;
+            if (!(m >= 0 && m <= 1)) { salah.push('maju di luar [0,1] pada t=' + t); break; }
+          }
+        }
+        T('R8 slide 08 beranimasi sendiri', salah.length === 0,
+          salah.join('; ') || '4 fase berulang tiap 12 detik, progres mulus');
       })();
 
       // R6: penanda selesai slide 09. Disimulasikan seluruh siklus satu kasus
