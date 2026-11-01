@@ -763,13 +763,15 @@
        8. RENDERER - semua gambar dibuat via kode (fillRect/path), tanpa file aset.
        ========================================================================= */
     const W = 1280, H = 720;
-    const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+    const cv = document.getElementById('cv');
+    let ctx = cv.getContext('2d');
     ctx.imageSmoothingEnabled = false;
 
     const P = { // palet terbatas ala NES
       bg: '#0f0f1b', dark: '#1a1c2c', navy: '#29366f', blue: '#3b5dc9', cyan: '#41a6f6',
       teal: '#73eff7', white: '#f4f4f4', gray: '#94b0c2', red: '#b13e53', orange: '#ef7d57',
-      yellow: '#ffcd75', green: '#38b764', lime: '#a7f070', purple: '#b55088', brown: '#733e39'
+      yellow: '#ffcd75', green: '#38b764', lime: '#a7f070', purple: '#b55088', brown: '#733e39',
+      outline: '#0a0a12', pink: '#ff6ad5'
     };
     // Warna per mode HHO (dipakai juga di legenda) [1]
     const MODE_COL = { explore: P.cyan, soft: P.yellow, hard: P.orange, softDive: P.purple, hardDive: P.red };
@@ -817,44 +819,141 @@
         }
       }
     }
-    /* --- Sprite: ELANG HARRIS (kandidat solusi HHO) --- */
+    // PENUNJUK LANGKAH: memberi tahu penonton sedang di tahap mana tanpa menambah
+    // kalimat. Fungsi murni agar urutannya bisa diuji terpisah dari penggambaran.
+    function stepTrail(nama, aktifIdx) {
+      return nama.map(function (n, i) {
+        return { nama: n, aktif: i === aktifIdx, lewat: i < aktifIdx };
+      });
+    }
+    // Menggambar penunjuk langkah mendatar di (x, y).
+    function drawSteps(x, y, nama, aktifIdx, lebar) {
+      const t = stepTrail(nama, aktifIdx);
+      const w = (lebar || 320) / Math.max(1, t.length);
+      t.forEach(function (st, i) {
+        const cx = x + i * w;
+        const col = st.aktif ? P.yellow : (st.lewat ? P.green : P.navy);
+        rect(cx, y, w - 6, 3, col);
+        txt((i + 1) + ' ' + st.nama, cx, y + 8, 7, st.aktif ? P.white : (st.lewat ? P.gray : P.navy));
+      });
+    }
+
+    /* ---------------------------------------------------------------------------
+       DITHERING BAYER 4x4 - ciri khas seni 8-bit. Dipakai untuk gradasi langit,
+       bayangan panel, dan heatmap, agar peralihan warna terasa dirancang
+       (pola titik teratur) alih-alih blok datar.
+       ------------------------------------------------------------------------- */
+    const BAYER = [
+      [0, 8, 2, 10],
+      [12, 4, 14, 6],
+      [3, 11, 1, 9],
+      [15, 7, 13, 5]
+    ];
+    function bayer4(x, y) { return BAYER[((y % 4) + 4) % 4][((x % 4) + 4) % 4]; }
+    // true = pakai warna terang. rasio 0 -> seluruhnya gelap, 1 -> seluruhnya terang.
+    function dither(x, y, rasio) { return rasio * 16 > bayer4(x, y); }
+
+    /* --- Sprite: ELANG HARRIS (kandidat solusi HHO), gaya arcade outline tebal ---
+       Siluet sengaja menegaskan ciri elang: paruh kuning bengkok, tiga jari bulu
+       di ujung tiap sayap, dan ekor kipas. Tanpa itu, siluetnya terbaca kelelawar. */
     const SPR_HAWK = [
-      "..BB.....BB..",
-      ".BWWB...BWWB.",
-      "BWWWWB.BWWWWB",
-      ".BWWBBBBBWWB.",
-      "..BBBKKKBBB..",
-      "...BKKYKKB...",
-      "...BKKKKKB...",
-      "....BBYBB....",
-      ".....BBB....."
+      "...B....BB....B...",
+      "..BRB..BRRB..BRB..",
+      ".BRRRBBRRRRBBRRRB.",
+      "BRRRRRRRDDRRRRRRRB",
+      "BRRRRRRDKKDRRRRRRB",
+      ".BBRRRDDKKDDRRRBB.",
+      "...BBRDDWWDDRBB...",
+      ".....BDDWWDDB.....",
+      "......BDYYDB......",
+      ".......BYYB.......",
+      "......BRDDRB......",
+      ".....BRRBBRRB....."
     ];
-    const HAWK_PAL = { B: P.brown, W: P.orange, K: P.dark, Y: P.yellow };
-    // Varian warna sesuai mode: sayap diwarnai ulang
-    function hawkPal(col) { return { B: col, W: P.white, K: P.dark, Y: P.yellow }; }
+    // Pose kedua: menukik (sayap terlipat) - dipakai saat elang masuk mode dive.
+    const SPR_HAWK_DIVE = [
+      ".B..B........B..B.",
+      "BRBBRB......BRBBRB",
+      "BRRRRRB....BRRRRRB",
+      ".BRRRRRBBBBRRRRRB.",
+      "..BRRRRDDDDRRRRB..",
+      "...BRRDWWWWDRRB...",
+      "....BDDWKKWDDB....",
+      ".....BDWKKWDB.....",
+      "......BDYYDB......",
+      ".......BYYB.......",
+      "......BRRRRB......",
+      ".....BB.BB.BB....."
+    ];
+    const HAWK_PAL = { B: P.outline, R: P.orange, D: P.brown, K: P.dark, W: P.white, Y: P.yellow };
+    // Varian warna sesuai mode: bulu badan diwarnai ulang, outline & paruh tetap.
+    function hawkPal(col) { return { B: P.outline, R: col, D: P.brown, K: P.dark, W: P.white, Y: P.yellow }; }
 
-    /* --- Sprite: KELINCI (solusi terbaik / X_rabbit) --- */
+    /* --- Sprite: KELINCI (solusi terbaik / X_rabbit) ---
+       Ciri kunci: telinga panjang berisi pink, mata di samping kepala (bukan
+       depan seperti kucing), dan kaki belakang besar. */
     const SPR_RABBIT = [
-      ".W...W.",
-      ".W.W.W.",
-      ".WWWWW.",
-      "WWKWKWW",
-      "WWWRWWW",
-      ".WWWWW.",
-      "W.WWW.W"
+      "..BB....BB..",
+      ".BWPB..BWPB.",
+      ".BWPB..BWPB.",
+      ".BWWB..BWWB.",
+      "..BWBBBBWB..",
+      ".BWWWWWWWWB.",
+      "BWKWWWWKWWB.",
+      "BWWWWPWWWWWB",
+      "BWWWWWWWWWWB",
+      ".BWWWWWWWWBB",
+      "BWWBBWWBBWWB",
+      ".BB..BB..BB."
     ];
-    const RAB_PAL = { W: P.white, K: P.dark, R: P.red };
+    // Pose kedua: lari (telinga ke belakang) - dipakai saat kelinci kabur.
+    const SPR_RABBIT_RUN = [
+      "...........B",
+      "..BB.....BBW",
+      ".BWPBB.BBWPB",
+      ".BWWWBBWWWB.",
+      "..BWWWWWWB..",
+      ".BWKWWWKWWB.",
+      "BWWWWPWWWWWB",
+      "BWWWWWWWWWWB",
+      "BWWWWWWWWWBB",
+      ".BWWBBBWWWB.",
+      "BWWB...BWWB.",
+      ".BB.....BB.."
+    ];
+    const RAB_PAL = { B: P.outline, W: P.white, P: P.pink, K: P.dark };
 
-    /* --- Sprite: SLIME/BLOB (individu DE) --- */
+    /* --- Sprite: SLIME/BLOB (individu DE) ---
+       Bentuk tetes dengan highlight kiri-atas dan bayangan kanan-bawah, agar
+       terbaca bervolume meski hanya 12x10. */
     const SPR_BLOB = [
-      "..GGG..",
-      ".GLLLG.",
-      "GLKLKLG",
-      "GLLLLLG",
-      "GLLLLLG",
-      ".GGGGG."
+      "....BBBB....",
+      "..BBLLLLBB..",
+      ".BLLLLLLLLB.",
+      "BLLWLLLLGGLB",
+      "BLLLLKLLKGLB",
+      "BLLLLLLLLGLB",
+      "BLLLLLLLGGLB",
+      ".BLLLLLGLGB.",
+      "..BBLLLLBB..",
+      "....BBBB...."
     ];
-    function blobPal(c1, c2) { return { G: c1, L: c2, K: P.dark }; }
+    function blobPal(c1, c2) {
+      return { B: P.outline, L: c2, G: c1, W: P.white, K: P.dark };
+    }
+
+    // Titik kiri-atas agar sprite TERPUSAT di (cx, cy). Fungsi murni supaya bisa
+    // diuji: dengan ini, mengganti ukuran sprite tidak membuat posisi meleset.
+    function spriteOrigin(map, cx, cy, px) {
+      return { x: Math.round(cx - (map[0].length * px) / 2),
+               y: Math.round(cy - (map.length * px) / 2) };
+    }
+    // Menggambar sprite terpusat di (cx, cy).
+    function spriteAt(map, cx, cy, px, pal) {
+      const o = spriteOrigin(map, cx, cy, px);
+      sprite(map, o.x, o.y, px, pal);
+      return o;
+    }
 
     /* --- Sprite: TASK (blok pekerjaan) & VM (server rak) --- */
     function drawVM(x, y, w, h, speed, maxSpeed, label, col) {
@@ -863,6 +962,94 @@
       for (let i = 0; i < 3; i++) rect(x + 8 + i * 7, y + h - 14, 4, 4, i < 1 + Math.round(2 * speed / maxSpeed) ? P.lime : P.navy);
       txt(label, x + 8, y + 16, 8, P.gray);
       txt(speed + ' MIPS', x + 8, y + 28, 8, P.yellow);
+    }
+
+    /* ---------------------------------------------------------------------------
+       LATAR BERNYAWA - tiap algoritma mendapat habitat sesuai inspirasinya,
+       bukan kotak hitam. HHO berburu di langit gurun, DE berkembang biak di
+       cawan petri. Semua digambar via kode dengan dithering Bayer.
+       ------------------------------------------------------------------------- */
+
+    // Bagian statis latar dipanggang SEKALI ke kanvas luar-layar. Menggambar
+    // dithering per piksel tiap frame terlalu mahal (terukur 12fps); dengan
+    // cache ini hanya awan/gelembung yang dihitung ulang.
+    const bgCache = {};
+    function bakedBg(kunci, w, h, gambar) {
+      const k = kunci + w + 'x' + h;
+      if (bgCache[k]) return bgCache[k];
+      const oc = document.createElement('canvas'); oc.width = w; oc.height = h;
+      const simpan = ctx;
+      // gambar() memakai helper rect() yang menulis ke ctx global, jadi ctx
+      // ditukar sementara ke konteks luar-layar.
+      ctx = oc.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      gambar(w, h);
+      ctx = simpan;
+      bgCache[k] = oc;
+      return oc;
+    }
+
+    // Langit gurun berdither untuk HHO: gradien senja + mesa + awan hanyut.
+    function drawDesertSky(box, t) {
+      const langit = ['#1a1c2c', '#29366f', '#b55088', '#ef7d57'];
+      const pita = box.h / langit.length;
+      ctx.drawImage(bakedBg('sky', box.w, box.h, function (w, h) {
+      const box = { x: 0, y: 0, w: w, h: h };
+      for (let y = 0; y < box.h; y += 2) {
+        const i = Math.min(langit.length - 1, Math.floor(y / pita));
+        const f = (y % pita) / pita;            // posisi dalam pita -> rasio dithering
+        for (let x = 0; x < box.w; x += 2) {
+          const atas = langit[i];
+          const bawah = langit[Math.min(langit.length - 1, i + 1)];
+          rect(box.x + x, box.y + y, 2, 2, dither(x >> 1, y >> 1, f) ? bawah : atas);
+        }
+      }
+      // mesa: dua lapis siluet, lapis jauh lebih gelap
+      for (let lap = 0; lap < 2; lap++) {
+        const dasar = box.y + box.h * (0.72 + lap * 0.1);
+        const warna = lap === 0 ? '#3b2b4a' : '#2a1f33';
+        for (let x = 0; x < box.w; x += 4) {
+          const h = 26 * Math.sin(x * 0.013 + lap * 2.2) + 16 * Math.sin(x * 0.031 + lap) + 34;
+          rect(box.x + x, dasar - h * 0.5, 4, box.y + box.h - (dasar - h * 0.5), warna);
+        }
+      }
+      }), box.x, box.y);
+      // awan hanyut pelan (gerak = hidup, tapi hanya 3 gumpal agar murah)
+      for (let k = 0; k < 3; k++) {
+        const cx = ((t * (6 + k * 3) + k * 190) % (box.w + 90)) - 45;
+        const cy = box.y + 18 + k * 17;
+        for (let w = 0; w < 30; w += 2)
+          for (let hgt = 0; hgt < 8; hgt += 2)
+            if (dither(w >> 1, hgt >> 1, 0.5 + 0.4 * Math.sin(w * 0.22 + k)))
+              rect(box.x + cx + w, cy + hgt, 2, 2, '#56406b');
+      }
+    }
+
+    // Cawan petri berdither untuk DE: kisi lab + gelembung naik.
+    function drawPetriDish(box, t) {
+      ctx.drawImage(bakedBg('petri', box.w, box.h, function (w, h) {
+      const box = { x: 0, y: 0, w: w, h: h };
+      rect(box.x, box.y, box.w, box.h, '#0d1410');
+      // kisi lab samar
+      for (let x = 0; x < box.w; x += 16) rect(box.x + x, box.y, 1, box.h, '#16241a');
+      for (let y = 0; y < box.h; y += 16) rect(box.x, box.y + y, box.w, 1, '#16241a');
+      // cahaya tengah berdither (seperti di bawah mikroskop)
+      const cx = box.w / 2, cy = box.h / 2, rmax = Math.min(box.w, box.h) * 0.5;
+      for (let y = 0; y < box.h; y += 2)
+        for (let x = 0; x < box.w; x += 2) {
+          const d = Math.hypot(x - cx, y - cy) / rmax;
+          if (d < 1 && dither(x >> 1, y >> 1, (1 - d) * 0.45))
+            rect(box.x + x, box.y + y, 2, 2, '#1c3524');
+        }
+      }), box.x, box.y);
+      // gelembung naik: sel yang hidup
+      for (let k = 0; k < 7; k++) {
+        const bx = (k * 137) % box.w;
+        const by = box.h - ((t * (14 + k * 4) + k * 70) % (box.h + 24));
+        const r = 2 + (k % 3);
+        rect(box.x + bx, box.y + by, r * 2, r * 2, '#265c38');
+        rect(box.x + bx, box.y + by, r, r, '#38b764');
+      }
     }
 
     /* --- HEATMAP LANSKAP (Rastrigin 2D) - dirender sekali ke offscreen canvas,
@@ -897,10 +1084,19 @@
       return [box.x + ((p[0] - LS.lo) / (LS.hi - LS.lo)) * box.w,
       box.y + ((p[1] - LS.lo) / (LS.hi - LS.lo)) * box.h];
     }
-    function drawLandscape(box) {
+    // habitat: 'sky' (gurun, HHO) | 'petri' (cawan, DE) | null (polos)
+    function drawLandscape(box, habitat, t) {
       if (!heatCv) bakeHeatmap(64);
       ctx.imageSmoothingEnabled = false;
+      if (habitat === 'sky') drawDesertSky(box, t || 0);
+      else if (habitat === 'petri') drawPetriDish(box, t || 0);
+      // Heatmap tetap digambar sebagai LAPISAN fungsi objektif. Dibuat semi-
+      // transparan di atas habitat agar lembah/puncak tetap terbaca tanpa
+      // menutupi latar yang membuat adegan terasa hidup.
+      // 0.28 cukup untuk membaca letak lembah tanpa menutupi habitat.
+      ctx.globalAlpha = habitat ? 0.28 : 1;
       ctx.drawImage(heatCv, box.x, box.y, box.w, box.h);
+      ctx.globalAlpha = 1;
       frame(box.x, box.y, box.w, box.h, P.navy, 3);
     }
     // Bar energi/progress generik
@@ -1110,7 +1306,7 @@
         // blob DE (kanan) - memantul & membelah
         for (let k = 0; k < 3; k++) {
           const bx = 900 + k * 70, by = 310 + Math.abs(Math.sin(UI.time * 3 + k)) * -18;
-          sprite(SPR_BLOB, bx, by, 6, blobPal(P.green, P.lime));
+          spriteAt(SPR_BLOB, bx + 21, by + 18, 6, blobPal(P.green, P.lime));
         }
         txt('DE', 970, 372, 9, P.lime, 'center');
         // VS
@@ -1460,7 +1656,9 @@
         // kelinci di tengah, energi menurun tiap babak
         const rbx = ax + aw / 2 + (s.phase < 2 ? Math.sin(s.pt * 3) * 90 : 0);
         const rby = ay + ah - 110;
-        sprite(SPR_RABBIT, rbx - 21, rby, 6, RAB_PAL);
+        // Pose lari hanya ketika kelinci masih bergerak menghindar (fase 0-1).
+        const poseKelinci = (s.phase < 2 && Math.floor(s.pt * 4) % 2 === 0) ? SPR_RABBIT_RUN : SPR_RABBIT;
+        spriteAt(poseKelinci, rbx, rby + 18, 6, RAB_PAL);
         const energy = Math.max(0, 1 - s.pt / 12);
         bar(rbx - 50, rby - 34, 100, 16, energy, energy > 0.5 ? P.green : (energy > 0.2 ? P.yellow : P.red));
         txt('ENERGI KELINCI', rbx, rby - 52, 8, P.yellow, 'center');
@@ -1470,8 +1668,9 @@
           const radius = s.phase === 0 ? 230 : (s.phase === 1 ? 150 - Math.sin(UI.time * 2 + i) * 20 : 40);
           const hx = rbx + Math.cos(a) * radius * 0.9;
           const hy = rby - 40 + Math.sin(a) * radius * 0.42;
-          const col = s.phase === 0 ? P.cyan : (s.phase === 1 ? P.yellow : P.red);
-          sprite(SPR_HAWK, hx - 26, hy - 18, 4, hawkPal(col));
+          // Bulu elang tetap rufous di semua fase; warna fase ditandai lewat garis serang & label.
+          const col = s.phase === 0 ? P.orange : (s.phase === 1 ? P.yellow : P.red);
+          spriteAt(s.phase === 2 ? SPR_HAWK_DIVE : SPR_HAWK, hx, hy, 4, hawkPal(col));
           if (s.phase === 2) line(hx, hy, rbx, rby + 12, P.red, 1);
         }
         const lbl = ['1. MENYEBAR & MENGINTAI (|E| >= 1)',
@@ -1495,8 +1694,8 @@
           rect(770, y, W - 830, 2, P.navy);
           txt(r[0], 780, y + 14, 9, r[2]);
           txt(r[1], 780, y + 34, 8, P.gray);
-          if (r[3] === 1) sprite(SPR_HAWK, W - 130, y + 8, 3, HAWK_PAL);
-          if (r[3] === 2) sprite(SPR_RABBIT, W - 120, y + 8, 4, RAB_PAL);
+          if (r[3] === 1) spriteAt(SPR_HAWK, W - 100, y + 26, 3, HAWK_PAL);
+          if (r[3] === 2) spriteAt(SPR_RABBIT, W - 100, y + 26, 3, RAB_PAL);
         });
         txt('KEUNIKAN: ADA PEMIMPIN (KELINCI)', 770, 478, 8, P.yellow);
         hot(750, 90, W - 790, 420, 'HHO mengubah perilaku berburu menjadi aturan matematika: posisi elang diperbarui relatif terhadap kelinci, dan energi E yang menurun memaksa peralihan dari menjelajah ke menyerang.');
@@ -1537,7 +1736,7 @@
         const s = ST.s5, Hs = s.H;
         // ===== lanskap + elang =====
         const box = { x: 40, y: 84, w: 420, h: 420 };
-        drawLandscape(box);
+        drawLandscape(box, 'sky', UI.time);
         // jejak Levy (zig-zag) untuk elang yang baru menukik
         for (let i = 0; i < Hs.X.length; i++) {
           if ((Hs.mode[i] === 'softDive' || Hs.mode[i] === 'hardDive') && Hs.trail[i] && Hs.trail[i].length === 2) {
@@ -1558,7 +1757,7 @@
           frame(p[0] - 5, p[1] - 5, 10, 10, P.bg, 1);
         }
         const rp = toScreen(Hs.rabbit, box);
-        sprite(SPR_RABBIT, rp[0] - 14, rp[1] - 14, 4, RAB_PAL);
+        spriteAt(SPR_RABBIT, rp[0], rp[1], 3, RAB_PAL);
         frame(rp[0] - 16, rp[1] - 16, 32, 32, P.white, 2);
         txt('LANSKAP RASTRIGIN 2D', box.x, box.y - 14, 9, P.gray);
         hot(box.x, box.y, box.w, box.h, 'Warna kotak = strategi elang pada iterasi ini. Garis ungu patah-patah = Levy flight pada tahap rapid dive. Kelinci putih = solusi terbaik sejauh ini.');
@@ -1613,6 +1812,9 @@
           hot(876, y, W - 930, 72, MODE_LBL[m] + ' - syarat ' + COND[m] + '. Rumus: ' + FORM[m] + '. Semua rumus dari Heidari dkk. 2019 [1].');
         });
         txt('J = 2*(1 - rand) : KEKUATAN LOMPAT KELINCI', 876, 504, 7, P.yellow);
+        // Penunjuk alur: fase ditentukan batas |E| = 2(1 - t/T), sesuai eq.(3) [1].
+        const faseHHO = eMax >= 1 ? 0 : (eMax >= 0.5 ? 1 : 2);
+        drawSteps(40, 528, ['SEBAR (|E|>=1)', 'KEPUNG (|E|<1)', 'TUKIK (|E|<0.5)'], faseHHO, 420);
 
         // ===== DEBUG MODE: tampilkan t, T, E tiap elang =====
         if (UI.dbg) {
@@ -1655,15 +1857,15 @@
         if (ph === 0) {
           // B dan C membentuk selisih, ditempel ke A -> V
           const A = [430, cy + 70], B = [300, cy - 70], C = [570, cy + 30];
-          sprite(SPR_BLOB, A[0] - 21, A[1] - 18, 6, blobPal(P.blue, P.cyan)); txt('A', A[0], A[1] + 26, 9, P.cyan, 'center');
-          sprite(SPR_BLOB, B[0] - 21, B[1] - 18, 6, blobPal(P.purple, P.orange)); txt('B', B[0], B[1] + 26, 9, P.orange, 'center');
-          sprite(SPR_BLOB, C[0] - 21, C[1] - 18, 6, blobPal(P.navy, P.teal)); txt('C', C[0], C[1] + 26, 9, P.teal, 'center');
+          spriteAt(SPR_BLOB, A[0], A[1], 5, blobPal(P.blue, P.cyan)); txt('A', A[0], A[1] + 26, 9, P.cyan, 'center');
+          spriteAt(SPR_BLOB, B[0], B[1], 5, blobPal(P.purple, P.orange)); txt('B', B[0], B[1] + 26, 9, P.orange, 'center');
+          spriteAt(SPR_BLOB, C[0], C[1], 5, blobPal(P.navy, P.teal)); txt('C', C[0], C[1] + 26, 9, P.teal, 'center');
           arrow(C[0], C[1], B[0], B[1], P.yellow, 3);
           txt('B - C', (B[0] + C[0]) / 2 + 10, (B[1] + C[1]) / 2 - 20, 9, P.yellow);
           // F*(B-C) ditempel ke A
           const F = 0.6, vx = A[0] + F * (B[0] - C[0]), vy = A[1] + F * (B[1] - C[1]);
           arrow(A[0], A[1], vx, vy, P.lime, 3);
-          sprite(SPR_BLOB, vx - 21, vy - 18, 6, blobPal(P.green, P.lime));
+          spriteAt(SPR_BLOB, vx, vy, 5, blobPal(P.green, P.lime));
           txt('V = A + F*(B-C)', vx, vy + 28, 9, P.lime, 'center');
           txt('ARAH LANGKAH DIPINJAM DARI POPULASI SENDIRI', 380, 470, 8, P.gray, 'center');
         }
@@ -1692,10 +1894,10 @@
         }
         if (ph === 2) {
           // duel greedy
-          sprite(SPR_BLOB, 230, cy - 40, 9, blobPal(P.blue, P.cyan));
+          spriteAt(SPR_BLOB, 262, cy - 4, 7, blobPal(P.blue, P.cyan));
           txt('INDUK X', 262, cy + 32, 9, P.cyan, 'center');
           txt('f = 14.2', 262, cy + 50, 8, P.gray, 'center');
-          sprite(SPR_BLOB, 430, cy - 40, 9, blobPal(P.green, P.lime));
+          spriteAt(SPR_BLOB, 462, cy - 4, 7, blobPal(P.green, P.lime));
           txt('ANAK U', 462, cy + 32, 9, P.lime, 'center');
           txt('f = 6.8', 462, cy + 50, 8, P.gray, 'center');
           txt('VS', 362, cy - 4, 16, P.red, 'center');
@@ -1772,7 +1974,7 @@
         const s = ST.s7, Dp = s.D;
         // ===== lanskap + blob =====
         const box = { x: 40, y: 84, w: 400, h: 400 };
-        drawLandscape(box);
+        drawLandscape(box, 'petri', UI.time);
         // panah selisih B-C untuk individu contoh (lastTrial)
         const tr = Dp.lastTrial;
         if (tr) {
@@ -1786,7 +1988,7 @@
         }
         for (let i = 0; i < Dp.X.length; i++) {
           const p = toScreen(Dp.X[i], box);
-          sprite(SPR_BLOB, p[0] - 7, p[1] - 6, 2, blobPal(P.green, P.lime));
+          spriteAt(SPR_BLOB, p[0], p[1], 2, blobPal(P.green, P.lime));
         }
         const bp = toScreen(Dp.best, box);
         rect(bp[0] - 5, bp[1] - 5, 10, 10, P.yellow); frame(bp[0] - 7, bp[1] - 7, 14, 14, P.white, 2);
@@ -1808,6 +2010,10 @@
         // ===== grafik =====
         plot({ x: 460, y: 250, w: 350, h: 112 }, [{ data: Dp.hist, col: P.lime }], { title: 'BEST f vs GENERASI', len: Dp.T, dp: 2 });
         plot({ x: 460, y: 396, w: 350, h: 112 }, [{ data: s.spread, col: P.teal }], { title: 'SEBARAN POPULASI vs GENERASI', len: Dp.T, dp: 3 });
+        // Penunjuk alur tiga langkah DE. Saat slow-mo, mengikuti fase sungguhan.
+        const faseDE = s.slowOn && s.Dm.slow ? Math.min(2, s.Dm.slow.phase - 1)
+                                             : (Dp.t === 0 ? -1 : 2);
+        drawSteps(40, 500, ['MUTASI', 'CROSSOVER', 'SELEKSI'], faseDE, 400);
 
         // ===== panel kanan: 3 langkah / slow-mo =====
         panel(830, 84, W - 870, 424, s.slowOn ? P.purple : P.navy);
@@ -2032,6 +2238,9 @@
         txt('N = ' + cas.N + ' TASK   M = ' + cas.M + ' VM   SEED = ' + cas.seed +
           '   t = ' + s.Hh.t + '/' + s.Hh.T, 60, 92, 9, P.white);
         txt('MIPS: ' + cas.vms.join(' / '), 60, 110, 8, P.gray);
+        // Penunjuk alur studi kasus.
+        const faseKasus = s.Hh.t === 0 ? 0 : (s.Hh.t < s.Hh.T ? 1 : 2);
+        drawSteps(700, 92, ['DATA SAMA', 'ITERASI', 'BANDINGKAN'], faseKasus, 380);
         hot(40, 74, W - 80, 56, 'Semua algoritma memakai data task dan VM yang identik, serta seed PRNG yang sama, sehingga perbandingan makespan adil dan dapat diulang.');
 
         // ===== 4 Gantt =====
@@ -2112,10 +2321,10 @@
         const cw = (W - 120) / 2, cx1 = 40, cx2 = 40 + cw + 40;
         // header
         panel(cx1, 80, cw, 56, P.orange);
-        sprite(SPR_HAWK, cx1 + 14, 92, 3, HAWK_PAL);
+        spriteAt(SPR_HAWK, cx1 + 42, 108, 3, HAWK_PAL);
         txt('HHO [1]', cx1 + 70, 100, 14, P.orange);
         panel(cx2, 80, cw, 56, P.lime);
-        sprite(SPR_BLOB, cx2 + 20, 92, 5, blobPal(P.green, P.lime));
+        spriteAt(SPR_BLOB, cx2 + 42, 108, 4, blobPal(P.green, P.lime));
         txt('DE/rand/1/bin [3]', cx2 + 70, 100, 14, P.lime);
 
         const fields = [
@@ -2550,6 +2759,86 @@
         }
         T('R10 kanvas tidak menimpa bar', salah.length === 0,
           salah.join('; ') || 'kanvas menyusut mengikuti tinggi bar, rasio 16:9 terjaga');
+      })();
+
+      // R11: spriteAt() memusatkan sprite pada titik yang diberikan, berapa pun
+      //      ukuran grid-nya. Tanpa ini, mengganti sprite berarti menyetel ulang
+      //      offset di 15 tempat satu per satu, dan pasti ada yang meleset.
+      (function () {
+        const salah = [];
+        if (typeof spriteOrigin !== 'function') {
+          salah.push('spriteOrigin belum ada');
+        } else {
+          // sprite 18x12 @4px -> lebar 72, tinggi 48 -> pusat di (36,24)
+          const a = spriteOrigin(SPR_HAWK, 100, 100, 4);
+          if (a.x !== 100 - 36 || a.y !== 100 - 24)
+            salah.push('elang: dapat (' + a.x + ',' + a.y + '), harusnya (64,76)');
+          // sprite 12x12 @4px -> 48x48 -> pusat (24,24)
+          const b = spriteOrigin(SPR_RABBIT, 200, 200, 4);
+          if (b.x !== 176 || b.y !== 176)
+            salah.push('kelinci: dapat (' + b.x + ',' + b.y + ')');
+          // skala berbeda harus ikut terhitung
+          const c = spriteOrigin(SPR_BLOB, 0, 0, 2);   // 12x10 @2 -> 24x20
+          if (c.x !== -12 || c.y !== -10)
+            salah.push('blob @2px: dapat (' + c.x + ',' + c.y + ')');
+        }
+        T('R11 sprite terpusat otomatis', salah.length === 0,
+          salah.join('; ') || 'elang/kelinci/blob terpusat benar di tiap skala');
+      })();
+
+      // R12: dithering 4x4 Bayer untuk gradasi latar. Ciri khas seni 8-bit yang
+      //      sebelumnya tidak ada sama sekali; tanpa ini gradasi terlihat seperti
+      //      blok warna datar hasil generator, bukan pixel art yang dirancang.
+      (function () {
+        const salah = [];
+        if (typeof bayer4 !== 'function') {
+          salah.push('bayer4 belum ada');
+        } else {
+          // Matriks Bayer 4x4 memuat tepat nilai 0..15, masing-masing sekali.
+          const nilai = [];
+          for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) nilai.push(bayer4(x, y));
+          const urut = nilai.slice().sort(function (a, b) { return a - b; });
+          for (let i = 0; i < 16; i++) if (urut[i] !== i) { salah.push('nilai ke-' + i + ' = ' + urut[i]); break; }
+          // harus berulang tiap 4 piksel
+          if (bayer4(0, 0) !== bayer4(4, 4) || bayer4(1, 2) !== bayer4(5, 6))
+            salah.push('tidak berulang tiap 4px');
+          // ambang dithering: 0 selalu gelap, 1 selalu terang
+          if (typeof dither !== 'function') salah.push('dither belum ada');
+          else {
+            let adaTerang = false, adaGelap = false;
+            for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+              if (dither(x, y, 0)) adaTerang = true;
+              if (!dither(x, y, 1)) adaGelap = true;
+            }
+            if (adaTerang) salah.push('rasio 0 seharusnya seluruhnya gelap');
+            if (adaGelap) salah.push('rasio 1 seharusnya seluruhnya terang');
+          }
+        }
+        T('R12 dithering Bayer 4x4', salah.length === 0,
+          salah.join('; ') || 'matriks 0..15 unik, berulang 4px, ambang benar');
+      })();
+
+      // R13: penunjuk langkah. Tiap slide simulasi harus menunjukkan penonton
+      //      sedang di tahap mana, tanpa menambah kalimat narasi.
+      (function () {
+        const salah = [];
+        if (typeof stepTrail !== 'function') {
+          salah.push('stepTrail belum ada');
+        } else {
+          const t = stepTrail(['SEBAR', 'KEPUNG', 'TUKIK'], 1);
+          if (t.length !== 3) salah.push('jumlah langkah salah: ' + t.length);
+          if (!t[1].aktif) salah.push('langkah ke-1 seharusnya aktif');
+          if (t[0].aktif || t[2].aktif) salah.push('hanya satu langkah boleh aktif');
+          if (!t[0].lewat) salah.push('langkah sebelum aktif harusnya ditandai lewat');
+          if (t[2].lewat) salah.push('langkah sesudah aktif tidak boleh lewat');
+          // indeks di luar rentang tidak boleh melempar
+          const a = stepTrail(['A', 'B'], -1), b = stepTrail(['A', 'B'], 99);
+          if (a.some(function (x) { return x.aktif; })) salah.push('indeks -1 tak boleh ada yg aktif');
+          if (!b[1].lewat) salah.push('indeks melebihi: semua harusnya lewat');
+          if (stepTrail([], 0).length !== 0) salah.push('daftar kosong harus aman');
+        }
+        T('R13 penunjuk langkah', salah.length === 0,
+          salah.join('; ') || 'satu langkah aktif, sebelumnya lewat, aman di batas');
       })();
 
       // R6: penanda selesai slide 09. Disimulasikan seluruh siklus satu kasus
