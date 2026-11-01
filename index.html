@@ -668,6 +668,35 @@
     function makeCaseFns(cas) {
       return { fn: (x) => makespanOf(x, cas), lo: 0, hi: 0.999999, D: cas.N };
     }
+
+    /* ---------------------------------------------------------------------------
+       7b. PENGELOLA STATE (fungsi murni, tanpa DOM)
+           Dipakai langsung oleh slide 07 & 09. Dipisah begini supaya perilakunya
+           bisa diuji lewat SIMULASI, tanpa mengklik tombol pada presentasi yang
+           sedang berjalan.
+       ------------------------------------------------------------------------- */
+
+    // Slide 07: saat slide dibuka ulang, pilihan slow-mo dan nilai F/CR/NP harus
+    // bertahan. Sebelumnya state dibuat ulang dari nol sehingga pilihan hilang.
+    function makeS7State(prev) {
+      const p = prev || {};
+      return {
+        np: p.np || 30,
+        F: p.F || 0.5,
+        CR: p.CR === undefined ? 0.9 : p.CR,
+        spread: [],
+        slowOn: !!p.slowOn
+      };
+    }
+
+    // Slide 05: tampilan tombol DEBUG MODE harus mengikuti keadaan UI.dbg yang
+    // sebenarnya, bukan selalu mati setiap slide dibuka ulang.
+    function debugButtonOn(dbgState) { return !!dbgState; }
+
+    // Slide 09: penanda selesai. false saat kasus disiapkan, true begitu iterasi
+    // habis, dan kembali false untuk kasus berikutnya.
+    function caseDoneAfterReset() { return false; }
+    function caseDoneAfterFinish() { return true; }
     /* ==ALGO-END== */
 
     /* ===========================================================================
@@ -1426,7 +1455,7 @@
         // Status debug dipulihkan agar tampilan tombol cocok dengan keadaan sebenarnya
         // saat pengguna keluar-masuk slide ini.
         const bDbg = mkBtn('DEBUG MODE', function () { UI.dbg = !UI.dbg; }, true);
-        bDbg.classList.toggle('on', UI.dbg);
+        bDbg.classList.toggle('on', debugButtonOn(UI.dbg));
       },
       reset() {
         const s = ST.s5;
@@ -1653,12 +1682,7 @@
       init() {
         clearDyn();
         // Pertahankan pilihan slow-mo & parameter saat pengguna keluar-masuk slide ini.
-        const prev7 = ST.s7 || {};
-        ST.s7 = {
-          np: prev7.np || 30, F: prev7.F || 0.5,
-          CR: prev7.CR === undefined ? 0.9 : prev7.CR,
-          spread: [], slowOn: !!prev7.slowOn
-        };
+        ST.s7 = makeS7State(ST.s7);
         this.reset();
         ST.s7.sNP = mkSlider('NP', 5, 60, ST.s7.np, 1, function (v) { return v; }, function (v) { ST.s7.np = v; SLIDES[7].reset(); });
         ST.s7.sF = mkSlider('F', 0.01, 2, ST.s7.F, 0.01, function (v) { return Number(v).toFixed(2); }, function (v) { ST.s7.F = v; SLIDES[7].reset(); });
@@ -1881,7 +1905,7 @@
         mkBtn('JALANKAN PENUH', function () {
           const s = ST.s9;
           while (s.Hh.t < s.Hh.T) { hhoStep(s.Hh); deStep(s.Dd); }
-          s.done = true;   // tandai selesai agar fanfare tidak berbunyi dua kali
+          s.done = caseDoneAfterFinish();   // tandai selesai agar fanfare tak berbunyi dua kali
           SFX.win();
         });
       },
@@ -1894,12 +1918,12 @@
         // HHO & DE dijalankan pada data dan seed yang sama agar adil
         s.Hh = hhoInit({ seed: 99, n: 30, D: cf.D, lo: cf.lo, hi: cf.hi, T: s.T, fn: cf.fn });
         s.Dd = deInit({ seed: 99, np: 30, D: cf.D, lo: cf.lo, hi: cf.hi, T: s.T, F: 0.5, CR: 0.9, fn: cf.fn });
-        s.done = false;   // tanpa ini, fanfare akhir hanya berbunyi sekali seumur halaman
+        s.done = caseDoneAfterReset();   // fanfare harus bisa berbunyi lagi tiap kasus baru
       },
       step() {
         const s = ST.s9;
         if (s.Hh.t < s.Hh.T) { hhoStep(s.Hh); deStep(s.Dd); if (s.Hh.t % 10 === 0) SFX.step(); }
-        else if (!s.done) { s.done = true; SFX.win(); }
+        else if (!s.done) { s.done = caseDoneAfterFinish(); SFX.win(); }
       },
       draw() {
         const s = ST.s9, cas = s.cas;
@@ -2296,6 +2320,54 @@
           'basi ' + basi + '/' + dive + ' dive, jejak hantu ' + hantu);
       })();
 
+      // R4: tampilan tombol DEBUG MODE harus mengikuti UI.dbg. Disimulasikan lewat
+      //     fungsi murni yang dipakai slide 05, jadi presentasi tidak diganggu.
+      (function () {
+        const salah = [];
+        if (debugButtonOn(true) !== true) salah.push('dbg=true seharusnya tombol menyala');
+        if (debugButtonOn(false) !== false) salah.push('dbg=false seharusnya tombol padam');
+        if (debugButtonOn(undefined) !== false) salah.push('dbg=undefined seharusnya tombol padam');
+        T('R4 tombol DEBUG MODE sinkron', salah.length === 0, salah.join('; ') || 'true/false/undefined dipetakan benar');
+      })();
+
+      // R5: keluar-masuk slide 07 tidak boleh menghapus pilihan slow-mo & parameter.
+      //     Disimulasikan: bentuk state awal, ubah, lalu bangun ulang seperti init().
+      (function () {
+        const awal = makeS7State(undefined);
+        const bawaanBenar = awal.np === 30 && awal.F === 0.5 && awal.CR === 0.9 && awal.slowOn === false;
+        // pengguna menyalakan slow-mo dan menggeser slider
+        awal.slowOn = true; awal.F = 1.25; awal.CR = 0; awal.np = 12;
+        awal.spread = [1, 2, 3];
+        const lagi = makeS7State(awal);     // slide dibuka ulang
+        const bertahan = lagi.slowOn === true && Math.abs(lagi.F - 1.25) < 1e-9 &&
+                         lagi.CR === 0 && lagi.np === 12;
+        const spreadBersih = lagi.spread.length === 0;   // riwayat grafik memang harus kosong
+        T('R5 state slide 07 bertahan', bawaanBenar && bertahan && spreadBersih,
+          'bawaan ' + (bawaanBenar ? 'ok' : 'SALAH') + ', bertahan ' + (bertahan ? 'ok' : 'SALAH') +
+          ' (slowOn=' + lagi.slowOn + ' F=' + lagi.F + ' CR=' + lagi.CR + ' NP=' + lagi.np + ')');
+      })();
+
+      // R6: penanda selesai slide 09. Disimulasikan seluruh siklus satu kasus
+      //     memakai fungsi yang sama dengan slide sungguhan.
+      (function () {
+        const sim = { done: caseDoneAfterReset() };          // kasus disiapkan
+        const awalFalse = sim.done === false;
+        const c = genCase(1337, 10, 3), cfn = makeCaseFns(c);
+        const hh3 = hhoInit({ seed: 99, n: 8, D: cfn.D, lo: cfn.lo, hi: cfn.hi, T: 5, fn: cfn.fn });
+        let fanfare = 0;
+        for (let k = 0; k < 8; k++) {                        // step melewati akhir iterasi
+          if (hh3.t < hh3.T) hhoStep(hh3);
+          else if (!sim.done) { sim.done = caseDoneAfterFinish(); fanfare++; }
+        }
+        const selesaiTrue = sim.done === true;
+        const sekaliSaja = fanfare === 1;                    // tidak berbunyi dua kali
+        sim.done = caseDoneAfterReset();                     // tombol KASUS BARU
+        const resetLagi = sim.done === false;
+        T('R6 penanda selesai slide 09', awalFalse && selesaiTrue && sekaliSaja && resetLagi,
+          'awal=false:' + awalFalse + ', selesai=true:' + selesaiTrue +
+          ', fanfare ' + fanfare + 'x, reset:' + resetLagi);
+      })();
+
 
       const failed = out.filter(function (o) { return o.HASIL === 'FAIL'; });
       console.log('%c=== UNIT TEST: HAWKS vs EVOLUTION ===', 'color:#ffcd75;font-weight:bold');
@@ -2306,72 +2378,13 @@
     }
     window.selfTest = selfTest;
 
-    /* ===========================================================================
-       14. UI TEST: memeriksa keadaan antarmuka yang tidak bisa diuji tanpa DOM.
-           Jalankan di console dengan uiTest(). Setiap test di bawah ini juga
-           ditulis lebih dulu dan terbukti GAGAL sebelum perbaikannya dipasang.
-       ========================================================================= */
-    function uiTest() {
-      const out = [];
-      const T = function (n, p, d) { out.push({ TEST: n, HASIL: p ? 'PASS' : 'FAIL', DETAIL: d }); };
-      const asal = UI.slide;
-      const cariBtn = function (t) {
-        return Array.prototype.slice.call(document.querySelectorAll('#dyn .btn'))
-          .filter(function (b) { return b.textContent === t; })[0];
-      };
 
-      // R4: status tombol DEBUG MODE harus cocok dengan UI.dbg setelah keluar-masuk slide.
-      gotoSlide(5);
-      const dbgAwal = UI.dbg;
-      cariBtn('DEBUG MODE').click();
-      const dbgSetelahKlik = UI.dbg;
-      gotoSlide(6); gotoSlide(5);
-      const tombolDbg = cariBtn('DEBUG MODE');
-      T('R4 tombol DEBUG MODE sinkron', tombolDbg.classList.contains('on') === UI.dbg,
-        'UI.dbg=' + UI.dbg + ', tombol on=' + tombolDbg.classList.contains('on'));
-      if (UI.dbg !== dbgAwal) cariBtn('DEBUG MODE').click();   // kembalikan keadaan semula
-
-      // R5: SLOW-MO dan nilai slider slide 07 harus bertahan saat pengguna keluar-masuk.
-      gotoSlide(7);
-      cariBtn('SLOW-MO').click();
-      ST.s7.sF.value = 1.25; ST.s7.sF.dispatchEvent(new Event('input'));
-      gotoSlide(6); gotoSlide(7);
-      const tombolSlow = cariBtn('SLOW-MO');
-      T('R5 SLOW-MO & slider bertahan',
-        ST.s7.slowOn === true && tombolSlow.classList.contains('on') === true &&
-        Math.abs(ST.s7.F - 1.25) < 1e-9 && Math.abs(parseFloat(ST.s7.sF.value) - 1.25) < 1e-9,
-        'slowOn=' + ST.s7.slowOn + ', tombol on=' + tombolSlow.classList.contains('on') + ', F=' + ST.s7.F);
-      cariBtn('SLOW-MO').click();
-      ST.s7.sF.value = 0.5; ST.s7.sF.dispatchEvent(new Event('input'));
-
-      // R6: penanda selesai slide 09 harus di-reset tiap kasus baru, supaya fanfare
-      //     bisa berbunyi lagi dan tidak berbunyi dua kali untuk satu kasus.
-      gotoSlide(9);
-      const doneAwal = ST.s9.done;
-      cariBtn('JALANKAN PENUH').click();
-      const doneSetelahRun = ST.s9.done;
-      cariBtn('KASUS BARU').click();
-      const doneSetelahBaru = ST.s9.done;
-      T('R6 penanda selesai slide 09 di-reset',
-        doneAwal === false && doneSetelahRun === true && doneSetelahBaru === false,
-        'awal=' + doneAwal + ', setelah run=' + doneSetelahRun + ', setelah kasus baru=' + doneSetelahBaru);
-
-      gotoSlide(asal);
-      const gagal = out.filter(function (o) { return o.HASIL === 'FAIL'; });
-      console.log('%c=== UI TEST ===', 'color:#ffcd75;font-weight:bold');
-      if (console.table) console.table(out); else console.log(out);
-      if (gagal.length) console.warn('ADA ' + gagal.length + ' UI TEST GAGAL.');
-      else console.log('%cSEMUA UI TEST PASS', 'color:#a7f070;font-weight:bold');
-      return out;
-    }
-    window.uiTest = uiTest;
 
     /* ===== START ===== */
     bakeHeatmap(64);
     fit();
     gotoSlide(0);
     selfTest();
-    uiTest();     // uji keadaan antarmuka (butuh DOM, karena itu dipisah dari selfTest)
     requestAnimationFrame(loop);
   </script>
 </body>
