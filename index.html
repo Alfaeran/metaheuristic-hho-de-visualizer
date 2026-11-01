@@ -711,6 +711,40 @@
       }
       return { fase: ENC_DUR.length - 1, maju: 1 };
     }
+
+    // Identitas kelompok pada layar judul. Dipisah begini supaya ukuran tiap baris
+    // bisa diuji agar selalu muat di dalam panel, meski nama anggota panjang.
+    const KREDIT = {
+      kelompok: 'KELOMPOK 2',
+      matkul: 'Sistem Optimasi Komputasi Awan',
+      anggota: [
+        'Muhammad Fatihul Qolbi Ash Shiddiqi',
+        'Kaisar Hanif Pratama',
+        'Mochammad Atha Tajuddin',
+        'Yuan Banny Albyan',
+        'M. Alfaeran Auriga Ruswandi'
+      ]
+    };
+    // Mengembalikan panel + daftar baris siap gambar (teks, posisi, ukuran, warna).
+    // Satu baris per anggota: lebih terbaca dan dijamin muat di dalam bingkai.
+    const PRESS_START_Y = 404, PRESS_START_H = 14;   // posisi ajakan "PRESS START"
+    function titleCredits() {
+      const pw = 720, ph = 200;
+      const px = (1280 - pw) / 2, py = 440;
+      const baris = [];
+      let y = py + 16;
+      baris.push({ teks: KREDIT.kelompok, x: 640, y: y, size: 11, col: '#ffcd75', al: 'center' });
+      y += 26;
+      baris.push({ teks: KREDIT.matkul, x: 640, y: y, size: 8, col: '#73eff7', al: 'center' });
+      y += 24;
+      baris.push({ teks: 'ANGGOTA', x: 640, y: y, size: 7, col: '#3b5dc9', al: 'center' });
+      y += 18;
+      for (const n of KREDIT.anggota) {
+        baris.push({ teks: n, x: 640, y: y, size: 8, col: '#94b0c2', al: 'center' });
+        y += 16;
+      }
+      return { panel: { x: px, y: py, w: pw, h: ph }, baris: baris };
+    }
     /* ==ALGO-END== */
 
     /* ===========================================================================
@@ -1071,12 +1105,12 @@
         txts('VS', W / 2, 320, 28, P.red, 'center');
         // PRESS START berkedip
         if (Math.floor(UI.time * 1.6) % 2 === 0)
-          txts('▶ PRESS START  (SPACE / ▶)', W / 2, 470, 14, P.white, 'center');
-        panel(W / 2 - 250, 530, 500, 110, P.navy);
-        txt('KELOMPOK : <KELOMPOK 2>', W / 2, 552, 9, P.gray, 'center');
-        txt('ANGGOTA  : <Muhammad Fatihul Qolbi Ash Shiddiqi, Kaisar Hanif Pratama, Mochammad Atha Tajuddin, Yuan Banny Albyan, M. Alfaeran Auriga Ruswandi>', W / 2, 574, 9, P.gray, 'center');
-        txt('MATA KULIAH : <Sistem Optimasi Komputasi Awan>', W / 2, 596, 9, P.gray, 'center');
-        txt('[1] Heidari 2019  [3] Storn & Price 1997  [4] Abdel-Basset 2022', W / 2, 618, 7, P.navy, 'center');
+          txts('▶ PRESS START  (SPACE / ▶)', W / 2, PRESS_START_Y, 14, P.white, 'center');
+        const kredit = titleCredits();
+        panel(kredit.panel.x, kredit.panel.y, kredit.panel.w, kredit.panel.h, P.navy);
+        for (const b of kredit.baris) txt(b.teks, b.x, b.y, b.size, b.col, b.al);
+        txt('[1] Heidari 2019  [3] Storn & Price 1997  [4] Abdel-Basset 2022',
+          W / 2, kredit.panel.y + kredit.panel.h + 10, 7, P.navy, 'center');
       }
     });
 
@@ -2438,6 +2472,47 @@
         }
         T('R8 slide 08 beranimasi sendiri', salah.length === 0,
           salah.join('; ') || '4 fase berulang tiap 12 detik, progres mulus');
+      })();
+
+      // R9: seluruh teks identitas di layar judul harus muat di dalam panelnya,
+      //     baik mendatar maupun menurun. Diukur dengan font yang benar-benar dipakai.
+      (function () {
+        const salah = [];
+        if (typeof titleCredits !== 'function') {
+          salah.push('titleCredits belum ada');
+        } else {
+          const kredit = titleCredits();
+          const pad = 16;                     // sisa ruang kiri-kanan di dalam bingkai
+          for (const b of kredit.baris) {
+            ctx.font = b.size + "px 'Press Start 2P', monospace";
+            const w = ctx.measureText(b.teks).width;
+            if (w > kredit.panel.w - pad * 2) {
+              salah.push('"' + b.teks.slice(0, 24) + '..." ' + Math.round(w) + 'px > ' +
+                         (kredit.panel.w - pad * 2) + 'px');
+              break;
+            }
+          }
+          // vertikal: baris terakhir tidak boleh melewati dasar panel
+          const akhir = kredit.baris[kredit.baris.length - 1];
+          if (akhir.y + akhir.size > kredit.panel.y + kredit.panel.h - 6)
+            salah.push('baris terakhir melewati dasar panel');
+          // tidak boleh menimpa ajakan PRESS START di atasnya
+          if (kredit.panel.y < PRESS_START_Y + PRESS_START_H + 8)
+            salah.push('panel menimpa PRESS START (panel y=' + kredit.panel.y +
+                       ', PRESS START berakhir di ' + (PRESS_START_Y + PRESS_START_H) + ')');
+          // panel sendiri harus muat di kanvas
+          if (kredit.panel.x < 0 || kredit.panel.x + kredit.panel.w > W)
+            salah.push('panel keluar dari kanvas');
+          if (kredit.panel.y + kredit.panel.h > 720)
+            salah.push('panel melewati tinggi kanvas');
+          // tidak boleh ada placeholder yang belum diisi
+          for (const b of kredit.baris)
+            if (b.teks.indexOf('<') >= 0 || b.teks.indexOf('>') >= 0) {
+              salah.push('masih ada placeholder: ' + b.teks.slice(0, 30)); break;
+            }
+        }
+        T('R9 identitas layar judul muat', salah.length === 0,
+          salah.join('; ') || 'semua baris muat di panel, tanpa placeholder');
       })();
 
       // R6: penanda selesai slide 09. Disimulasikan seluruh siklus satu kasus
