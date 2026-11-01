@@ -2231,6 +2231,72 @@
         'DE ' + dd.fBest.toFixed(3) + ' vs FCFS ' + rf.makespan.toFixed(3));
       T('info: baseline SJF', true, 'SJF ' + rs.makespan.toFixed(3));
 
+      /* ===== TEST REGRESI: tiap test di bawah ini ditulis LEBIH DULU, dijalankan
+         dengan perbaikannya dikembalikan ke kondisi rusak, dan terbukti GAGAL.
+         Baru setelah itu perbaikannya dipasang sehingga test menjadi PASS. ===== */
+
+      // R1: key cacat (NaN/undefined/Infinity) tidak boleh membuat decoder crash
+      //     atau menghasilkan jadwal tidak sah. Bug: floor(NaN) -> lists[NaN] undefined.
+      (function () {
+        const kasus = [
+          ['NaN di awal', [NaN, 0.1, 0.2, 0.3, 0.4, 0.5]],
+          ['undefined', [undefined, 0.1, 0.2, 0.3, 0.4, 0.5]],
+          ['semua NaN', [NaN, NaN, NaN, NaN, NaN, NaN]],
+          ['Infinity', [Infinity, -Infinity, 0.2, 0.3, 0.4, 0.5]]
+        ];
+        const c6 = genCase(1, 6, 3);
+        let gagal = '';
+        for (let k = 0; k < kasus.length; k++) {
+          try {
+            const L = decodeRandomKey(kasus[k][1], c6);
+            const flat = []; for (const l of L) for (const i of l) flat.push(i);
+            if (flat.length !== 6 || new Set(flat).size !== 6) gagal = kasus[k][0] + ': jadwal tidak sah';
+          } catch (e) { gagal = kasus[k][0] + ': ' + e.message; }
+          if (gagal) break;
+        }
+        T('R1 decoder tahan key cacat', !gagal, gagal || '4 kasus cacat -> jadwal tetap sah');
+      })();
+
+      // R2: DE/rand/1 butuh NP >= 4. NP < 4 dulu menggantung selamanya di pick3.
+      //     Sekarang harus melempar RangeError, bukan hang.
+      (function () {
+        let pesan = '', lolos = true;
+        for (const np of [1, 2, 3]) {
+          let lempar = false;
+          try { pick3(np, 0, makeRNG(1)); }
+          catch (e) { lempar = (e instanceof RangeError); }
+          if (!lempar) { lolos = false; pesan = 'NP=' + np + ' tidak melempar RangeError'; break; }
+        }
+        if (lolos) {
+          try { pick3(4, 0, makeRNG(1)); } catch (e) { lolos = false; pesan = 'NP=4 seharusnya sah: ' + e.message; }
+        }
+        T('R2 pick3 tolak NP < 4', lolos, pesan || 'NP 1/2/3 -> RangeError, NP 4 -> sah');
+      })();
+
+      // R3: jejak Levy hanya boleh milik iterasi berjalan. Bug: trail tidak pernah
+      //     dikosongkan, sehingga elang bermode dive menampilkan jejak iterasi lama.
+      (function () {
+        const hh2 = hhoInit({ seed: 4, n: 25, D: 2, lo: -5.12, hi: 5.12, T: 120, fn: rastrigin });
+        let basi = 0, dive = 0, hantu = 0;
+        for (let it = 0; it < 120; it++) {
+          const sebelum = hh2.trail.map(function (t) {
+            return (t && t.length === 2) ? (t[0][0] + ',' + t[0][1] + '|' + t[1][0] + ',' + t[1][1]) : null;
+          });
+          hhoStep(hh2);
+          for (let i = 0; i < hh2.X.length; i++) {
+            const m = hh2.mode[i], t = hh2.trail[i];
+            const kini = (t && t.length === 2) ? (t[0][0] + ',' + t[0][1] + '|' + t[1][0] + ',' + t[1][1]) : null;
+            if (m === 'softDive' || m === 'hardDive') {
+              dive++;
+              if (kini !== null && kini === sebelum[i]) basi++;   // jejak lama ikut tergambar
+            } else if (t) hantu++;                                // non-dive tak boleh punya jejak
+          }
+        }
+        T('R3 jejak Levy tidak basi', basi === 0 && hantu === 0,
+          'basi ' + basi + '/' + dive + ' dive, jejak hantu ' + hantu);
+      })();
+
+
       const failed = out.filter(function (o) { return o.HASIL === 'FAIL'; });
       console.log('%c=== UNIT TEST: HAWKS vs EVOLUTION ===', 'color:#ffcd75;font-weight:bold');
       if (console.table) console.table(out); else console.log(out);
@@ -2240,11 +2306,72 @@
     }
     window.selfTest = selfTest;
 
+    /* ===========================================================================
+       14. UI TEST: memeriksa keadaan antarmuka yang tidak bisa diuji tanpa DOM.
+           Jalankan di console dengan uiTest(). Setiap test di bawah ini juga
+           ditulis lebih dulu dan terbukti GAGAL sebelum perbaikannya dipasang.
+       ========================================================================= */
+    function uiTest() {
+      const out = [];
+      const T = function (n, p, d) { out.push({ TEST: n, HASIL: p ? 'PASS' : 'FAIL', DETAIL: d }); };
+      const asal = UI.slide;
+      const cariBtn = function (t) {
+        return Array.prototype.slice.call(document.querySelectorAll('#dyn .btn'))
+          .filter(function (b) { return b.textContent === t; })[0];
+      };
+
+      // R4: status tombol DEBUG MODE harus cocok dengan UI.dbg setelah keluar-masuk slide.
+      gotoSlide(5);
+      const dbgAwal = UI.dbg;
+      cariBtn('DEBUG MODE').click();
+      const dbgSetelahKlik = UI.dbg;
+      gotoSlide(6); gotoSlide(5);
+      const tombolDbg = cariBtn('DEBUG MODE');
+      T('R4 tombol DEBUG MODE sinkron', tombolDbg.classList.contains('on') === UI.dbg,
+        'UI.dbg=' + UI.dbg + ', tombol on=' + tombolDbg.classList.contains('on'));
+      if (UI.dbg !== dbgAwal) cariBtn('DEBUG MODE').click();   // kembalikan keadaan semula
+
+      // R5: SLOW-MO dan nilai slider slide 07 harus bertahan saat pengguna keluar-masuk.
+      gotoSlide(7);
+      cariBtn('SLOW-MO').click();
+      ST.s7.sF.value = 1.25; ST.s7.sF.dispatchEvent(new Event('input'));
+      gotoSlide(6); gotoSlide(7);
+      const tombolSlow = cariBtn('SLOW-MO');
+      T('R5 SLOW-MO & slider bertahan',
+        ST.s7.slowOn === true && tombolSlow.classList.contains('on') === true &&
+        Math.abs(ST.s7.F - 1.25) < 1e-9 && Math.abs(parseFloat(ST.s7.sF.value) - 1.25) < 1e-9,
+        'slowOn=' + ST.s7.slowOn + ', tombol on=' + tombolSlow.classList.contains('on') + ', F=' + ST.s7.F);
+      cariBtn('SLOW-MO').click();
+      ST.s7.sF.value = 0.5; ST.s7.sF.dispatchEvent(new Event('input'));
+
+      // R6: penanda selesai slide 09 harus di-reset tiap kasus baru, supaya fanfare
+      //     bisa berbunyi lagi dan tidak berbunyi dua kali untuk satu kasus.
+      gotoSlide(9);
+      const doneAwal = ST.s9.done;
+      cariBtn('JALANKAN PENUH').click();
+      const doneSetelahRun = ST.s9.done;
+      cariBtn('KASUS BARU').click();
+      const doneSetelahBaru = ST.s9.done;
+      T('R6 penanda selesai slide 09 di-reset',
+        doneAwal === false && doneSetelahRun === true && doneSetelahBaru === false,
+        'awal=' + doneAwal + ', setelah run=' + doneSetelahRun + ', setelah kasus baru=' + doneSetelahBaru);
+
+      gotoSlide(asal);
+      const gagal = out.filter(function (o) { return o.HASIL === 'FAIL'; });
+      console.log('%c=== UI TEST ===', 'color:#ffcd75;font-weight:bold');
+      if (console.table) console.table(out); else console.log(out);
+      if (gagal.length) console.warn('ADA ' + gagal.length + ' UI TEST GAGAL.');
+      else console.log('%cSEMUA UI TEST PASS', 'color:#a7f070;font-weight:bold');
+      return out;
+    }
+    window.uiTest = uiTest;
+
     /* ===== START ===== */
     bakeHeatmap(64);
     fit();
     gotoSlide(0);
     selfTest();
+    uiTest();     // uji keadaan antarmuka (butuh DOM, karena itu dipisah dari selfTest)
     requestAnimationFrame(loop);
   </script>
 </body>
