@@ -745,6 +745,18 @@
       }
       return { panel: { x: px, y: py, w: pw, h: ph }, baris: baris };
     }
+
+    // Ukuran kanvas yang muat di ruang tersedia dengan rasio tetap 16:9.
+    // Dipisah jadi fungsi murni supaya bisa diuji: slide dengan banyak kontrol
+    // membuat bar bawah membungkus jadi dua baris, ruang menyusut, dan kanvas
+    // harus ikut mengecil agar tidak menimpa bar itu.
+    const FIT_PAD = 16;
+    function fitCanvas(lebarRuang, tinggiRuang) {
+      const aw = Math.max(1, lebarRuang - FIT_PAD);
+      const ah = Math.max(1, tinggiRuang - FIT_PAD);
+      const skala = Math.min(aw / 1280, ah / 720);
+      return { w: Math.floor(1280 * skala), h: Math.floor(720 * skala), skala: skala };
+    }
     /* ==ALGO-END== */
 
     /* ===========================================================================
@@ -2149,9 +2161,9 @@
           ['[1]', 'A. A. Heidari, S. Mirjalili, H. Faris, I. Aljarah, M. Mafarja,',
             'H. Chen, "Harris hawks optimization: Algorithm and applications,"',
             'Future Generation Computer Systems, vol. 97, pp. 849-872, 2019.', P.orange],
-          ['[2]', '<< ISI JUDUL / PENULIS / TAHUN - BELUM DIISI >>',
-            'IEEE Xplore document 10504774',
-            'https://ieeexplore.ieee.org/document/10504774', P.red],
+          ['[2]', 'A. Ali, dkk., "Multiobjective Harris Hawks Optimization-Based',
+            'Task Scheduling in Cloud-Fog Computing," IEEE, 2024.',
+            'https://ieeexplore.ieee.org/document/10504774', P.purple],
           ['[3]', 'R. Storn, K. Price, "Differential Evolution - A Simple and Efficient',
             'Heuristic for Global Optimization over Continuous Spaces,"',
             'Journal of Global Optimization, vol. 11, pp. 341-359, 1997.', P.lime],
@@ -2169,9 +2181,10 @@
           txt(r[1], 120, y + 14, 8, P.white);
           txt(r[2], 120, y + 34, 8, P.white);
           txt(r[3], 120, y + 54, 8, P.gray);
-          if (k === 1) txt('DIBIARKAN KOSONG - METADATA BELUM DIVERIFIKASI', 120, y + 72, 7, P.red);
+          if (k === 1) txt('HHO MULTI-OBJEKTIF UNTUK SCHEDULING CLOUD-FOG', 120, y + 72, 7, P.purple);
         });
-        txt('DIPAKAI DI: [1] SLIDE 04-05   [3] SLIDE 06-07   [4][5] SLIDE 03 & 09', W / 2, 630, 8, P.yellow, 'center');
+        txt('DIPAKAI DI: [1][2] SLIDE 04-05   [3] SLIDE 06-07   [4][5] SLIDE 03 & 09',
+          W / 2, 630, 8, P.yellow, 'center');
         txt('BUKA CONSOLE (F12) UNTUK HASIL UNIT TEST', W / 2, 652, 7, P.gray, 'center');
       }
     });
@@ -2190,6 +2203,7 @@
       const hasSim = !!S.step;
       ['bPlay', 'bStep', 'bReset'].forEach(function (id) { el(id).disabled = !hasSim; });
       el('slideno').textContent = String(UI.slide).padStart(2, '0') + '/' + String(SLIDES.length - 1).padStart(2, '0');
+      fit();   // jumlah kontrol berbeda tiap slide -> tinggi bar berubah -> kanvas disesuaikan
       SFX.move();
     }
     function resetSlide() {
@@ -2247,11 +2261,10 @@
 
     // Responsif: canvas selalu 16:9 dan sebesar mungkin di dalam #stage.
     function fit() {
-      const st = el('stage'), pad = 16;
-      const aw = st.clientWidth - pad, ah = st.clientHeight - pad;
-      const scale = Math.min(aw / W, ah / 720);
-      cv.style.width = Math.floor(W * scale) + 'px';
-      cv.style.height = Math.floor(720 * scale) + 'px';
+      const st = el('stage');
+      const r = fitCanvas(st.clientWidth, st.clientHeight);
+      cv.style.width = r.w + 'px';
+      cv.style.height = r.h + 'px';
     }
     window.addEventListener('resize', fit);
     document.addEventListener('fullscreenchange', fit);
@@ -2513,6 +2526,30 @@
         }
         T('R9 identitas layar judul muat', salah.length === 0,
           salah.join('; ') || 'semua baris muat di panel, tanpa placeholder');
+      })();
+
+      // R10: kanvas tidak boleh menimpa bar kontrol. Slide dengan banyak kontrol
+      //      (mis. 09) membuat bar membungkus jadi dua baris sehingga #stage
+      //      menyusut; tanpa fit() ulang, kanvas tetap tinggi dan menabrak footer.
+      (function () {
+        if (typeof fitCanvas !== 'function') {
+          T('R10 kanvas tidak menimpa bar', false, 'fitCanvas belum ada');
+          return;
+        }
+        const salah = [];
+        // Simulasi murni: hitung tinggi kanvas untuk beberapa tinggi bar.
+        // Lebar ruang dibuat longgar supaya tinggi yang jadi penentu.
+        for (const tinggiBar of [46, 83, 120]) {
+          const ruangTinggi = 756 - tinggiBar;      // tinggi jendela contoh
+          const r = fitCanvas(1600, ruangTinggi);
+          if (r.h > ruangTinggi - 16)
+            salah.push('bar ' + tinggiBar + 'px: kanvas ' + r.h + ' > ruang ' + (ruangTinggi - 16));
+          if (Math.abs(r.w / r.h - 1280 / 720) > 0.01)
+            salah.push('bar ' + tinggiBar + 'px: rasio bukan 16:9');
+          if (r.h <= 0 || r.w <= 0) salah.push('bar ' + tinggiBar + 'px: ukuran tidak masuk akal');
+        }
+        T('R10 kanvas tidak menimpa bar', salah.length === 0,
+          salah.join('; ') || 'kanvas menyusut mengikuti tinggi bar, rasio 16:9 terjaga');
       })();
 
       // R6: penanda selesai slide 09. Disimulasikan seluruh siklus satu kasus
