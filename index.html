@@ -819,6 +819,20 @@
         }
       }
     }
+    /* Tata letak slide 10. Label baris diberi JALUR SENDIRI di tengah; celah
+       lama hanya 40px sedangkan label terpanjang 136px, sehingga label meluber
+       menutupi isi kedua kartu. */
+    function compareRowLayout(lebarKanvas) {
+      const pad = 36, labelW = 160, celah = 14;
+      const cw = Math.floor((lebarKanvas - pad * 2 - labelW - celah * 2) / 2);
+      return {
+        kiri: { x: pad, w: cw },
+        labelX: pad + cw + celah,
+        labelW: labelW,
+        kanan: { x: pad + cw + celah + labelW + celah, w: cw }
+      };
+    }
+
     // PENUNJUK LANGKAH: memberi tahu penonton sedang di tahap mana tanpa menambah
     // kalimat. Fungsi murni agar urutannya bisa diuji terpisah dari penggambaran.
     function stepTrail(nama, aktifIdx) {
@@ -1440,7 +1454,7 @@
         const hx = 250 + Math.sin(UI.time * 0.8) * 60, hy = 300 + Math.cos(UI.time * 1.3) * 22;
         sprite(flap ? SPR_HAWK : ["......B......", "..BBBBWBBBB..", ".BWWWWWWWWWB.", "..BBBKKKBBB..", "...BKKYKKB...", "...BKKKKKB...", "....BBYBB....", ".....BBB.....", "............."],
           hx, hy, 5, HAWK_PAL);
-        txt('HHO', hx + 14, hy + 58, 9, P.orange, 'center');
+        txt('HHO', hx + 80, hy + 112, 9, P.orange, 'center');   // di bawah sprite 160x100
         // blob DE (kanan) - memantul & membelah
         for (let k = 0; k < 3; k++) {
           const bx = 900 + k * 70, by = 310 + Math.abs(Math.sin(UI.time * 3 + k)) * -18;
@@ -2128,10 +2142,24 @@
           const pA = toScreen(tr.A, box), pB = toScreen(tr.B, box), pC = toScreen(tr.C, box), pV = toScreen(tr.V, box);
           arrow(pC[0], pC[1], pB[0], pB[1], P.yellow, 2);       // B - C
           arrow(pA[0], pA[1], pV[0], pV[1], P.lime, 2);         // A -> V (skala F)
-          rect(pA[0] - 4, pA[1] - 4, 8, 8, P.cyan); txt('A', pA[0] + 6, pA[1] - 14, 7, P.cyan);
-          rect(pB[0] - 4, pB[1] - 4, 8, 8, P.orange); txt('B', pB[0] + 6, pB[1] - 14, 7, P.orange);
-          rect(pC[0] - 4, pC[1] - 4, 8, 8, P.teal); txt('C', pC[0] + 6, pC[1] - 14, 7, P.teal);
-          rect(pV[0] - 5, pV[1] - 5, 10, 10, P.lime); txt('V', pV[0] + 6, pV[1] - 14, 7, P.lime);
+          // Label diberi alas gelap dan jarak cukup, supaya tetap terbaca meski
+          // blob lain kebetulan berada tepat di belakangnya.
+          // Saat populasi memusat (generasi lanjut), A/B/C/V bisa hampir berimpit.
+          // Label diberi sudut berbeda-beda dan garis penghubung, agar tetap
+          // terbaca tanpa menyembunyikan posisi sebenarnya.
+          const sudut = { A: [-18, -20], B: [10, -20], C: [10, 12], V: [-18, 12] };
+          const tandai = function (pt, huruf, warna, besar) {
+            const r = besar ? 5 : 4;
+            rect(pt[0] - r, pt[1] - r, r * 2, r * 2, warna);
+            const d = sudut[huruf];
+            const lx = pt[0] + d[0], ly = pt[1] + d[1];
+            line(pt[0], pt[1], lx + 5, ly + 5, warna, 1);
+            rect(lx, ly, 11, 11, P.bg);
+            frame(lx, ly, 11, 11, warna, 1);
+            txt(huruf, lx + 2, ly + 2, 7, warna);
+          };
+          tandai(pA, 'A', P.cyan); tandai(pB, 'B', P.orange);
+          tandai(pC, 'C', P.teal); tandai(pV, 'V', P.lime, true);
         }
         for (let i = 0; i < Dp.X.length; i++) {
           const p = toScreen(Dp.X[i], box);
@@ -2139,7 +2167,7 @@
         }
         const bp = toScreen(Dp.best, box);
         rect(bp[0] - 5, bp[1] - 5, 10, 10, P.yellow); frame(bp[0] - 7, bp[1] - 7, 14, 14, P.white, 2);
-        txt('LANSKAP SAMA (RASTRIGIN)', box.x, box.y - 14, 9, P.gray);
+        txt('LANSKAP SAMA (RASTRIGIN)', box.x + box.w, box.y - 16, 8, P.gray, 'right');
         hot(box.x, box.y, box.w, box.h, 'Panah kuning = selisih B-C. Panah hijau = F*(B-C) yang ditempelkan ke A menghasilkan V. Blob kuning = individu terbaik saat ini.');
 
         // ===== HUD =====
@@ -2465,14 +2493,15 @@
       init() { clearDyn(); ST.s10 = {}; },
       draw() {
         // dua kolom kartu
-        const cw = (W - 120) / 2, cx1 = 40, cx2 = 40 + cw + 40;
+        const LY = compareRowLayout(W);
+        const cw = LY.kiri.w, cx1 = LY.kiri.x, cx2 = LY.kanan.x;
         // header
         panel(cx1, 80, cw, 56, P.orange);
-        spriteAt(SPR_HAWK, cx1 + 42, 108, 3, HAWK_PAL);
-        txt('HHO [1]', cx1 + 70, 100, 14, P.orange);
+        spriteAt(SPR_HAWK, cx1 + 40, 108, 2, HAWK_PAL);
+        txt('HHO [1]', cx1 + 82, 100, 14, P.orange);
         panel(cx2, 80, cw, 56, P.lime);
-        spriteAt(SPR_BLOB, cx2 + 42, 108, 4, blobPal(P.green, P.lime));
-        txt('DE/rand/1/bin [3]', cx2 + 70, 100, 14, P.lime);
+        spriteAt(SPR_BLOB, cx2 + 40, 108, 3, blobPal(P.green, P.lime));
+        txt('DE/rand/1/bin [3]', cx2 + 82, 100, 14, P.lime);
 
         const fields = [
           ['INSPIRASI', 'BURUNG ELANG HARRIS BERBURU', 'EVOLUSI & SELEKSI ALAM'],
@@ -2486,8 +2515,8 @@
         ];
         fields.forEach(function (f, k) {
           const y = 150 + k * 54;
-          // label di tengah, di celah antar-kartu
-          txt(f[0], W / 2, y - 15, 8, P.yellow, 'center');
+          // label di jalur tengahnya sendiri, sejajar vertikal dengan barisnya
+          txt(f[0], LY.labelX + LY.labelW / 2, y + 12, 7, P.yellow, 'center');
           panel(cx1, y, cw, 36, P.navy);
           txt(f[1], cx1 + 14, y + 12, 7, P.white);
           panel(cx2, y, cw, 36, P.navy);
@@ -2497,7 +2526,7 @@
         });
         // hasil studi kasus diambil langsung dari slide 9 bila sudah dijalankan
         const y = 150 + fields.length * 54;
-        txt('HASIL STUDI KASUS', W / 2, y - 15, 8, P.yellow, 'center');
+        txt('HASIL STUDI KASUS', LY.labelX + LY.labelW / 2, y + 6, 7, P.yellow, 'center');
         let hTxt = 'JALANKAN SLIDE 09 DULU', dTxt = 'JALANKAN SLIDE 09 DULU';
         if (ST.s9 && ST.s9.Hh && ST.s9.Hh.t > 0) {
           hTxt = 'MAKESPAN ' + ST.s9.Hh.fRabbit.toFixed(3) + 's  (t=' + ST.s9.Hh.t + ')';
@@ -3028,6 +3057,30 @@
         }
         T('R13 penunjuk langkah', salah.length === 0,
           salah.join('; ') || 'satu langkah aktif, sebelumnya lewat, aman di batas');
+      })();
+
+      // R14: label baris slide 10 dipusatkan di celah antar dua kartu. Celah
+      //      hanya 40px sedangkan label terpanjang 136px, jadi label meluber
+      //      menutupi isi kedua kartu. Harus diberi jalur sendiri.
+      (function () {
+        const salah = [];
+        if (typeof compareRowLayout !== 'function') {
+          salah.push('compareRowLayout belum ada');
+        } else {
+          const L = compareRowLayout(1280);
+          ctx.font = "8px 'Press Start 2P', monospace";
+          const labelUji = ['INSPIRASI', 'PENGATUR JELAJAH', 'HASIL STUDI KASUS',
+                            'LANGKAH UTAMA', 'SIFAT PENGATUR'];
+          for (const t of labelUji) {
+            const w = ctx.measureText(t).width;
+            if (w > L.labelW) { salah.push('"' + t + '" ' + Math.round(w) + 'px > jalur ' + L.labelW + 'px'); break; }
+          }
+          if (L.kiri.x + L.kiri.w > L.labelX) salah.push('kartu kiri menabrak jalur label');
+          if (L.labelX + L.labelW > L.kanan.x) salah.push('jalur label menabrak kartu kanan');
+          if (L.kiri.x < 0 || L.kanan.x + L.kanan.w > 1280) salah.push('kartu keluar kanvas');
+        }
+        T('R14 label slide 10 muat di jalurnya', salah.length === 0,
+          salah.join('; ') || 'label terpanjang muat, kartu tidak bertabrakan');
       })();
 
       // R6: penanda selesai slide 09. Disimulasikan seluruh siklus satu kasus
