@@ -1,0 +1,42 @@
+PERFORMANCE TEST
+Setiap angka adalah rata-rata 5 pengulangan setelah 3 kali pemanasan JIT.
+
+1. SKALABILITAS TERHADAP DIMENSI (Sphere, N=30, T=500)
+   dim        waktu(ms)      evaluasi       ms/1k eval  
+   10         12.6           29282          0.431       
+   30         19.3           29216          0.661       
+   50         28.2           29224          0.966       
+   100        44.2           29215          1.512       
+   200        89.0           29207          3.048       
+   500        184.9          29130          6.348       
+
+2. SKALABILITAS TERHADAP POPULASI DAN ITERASI (Sphere dim=30)
+   N          T          waktu(ms)     
+   10         500        5.9           
+   30         500        14.8          
+   50         500        19.1          
+   100        500        59.4          
+   30         1000       30.8          
+   30         2000       88.9          
+
+3. BIAYA PER ALGORITMA (Sphere dim=30, N=30, T=500)
+   Alg      waktu(ms)      evaluasi      
+   HHO      14.8           29216         
+   PSO      28.9           15030         
+   GA       39.3           14530         
+   DE       14.8           15030         
+
+4. BIAYA SIMULASI CLOUDSIM (20 VM, 5 datacenter)
+   task       waktu sim(ms)    ms per task     
+   100        52.8             0.5280          
+   200        56.4             0.2821          
+   500        98.8             0.1976          
+   1000       212.6            0.2126          
+   2000       708.0            0.3540          
+
+5. JEJAK MEMORI PUNCAK (Sphere, N=30, T=500)
+   dim=30      delta heap = 3.00 MB
+   dim=200     delta heap = 0.73 MB
+   dim=1000    delta heap = 9.15 MB
+
+Tersimpan: results/performance.csv

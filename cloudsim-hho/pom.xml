@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>id.kelompok2</groupId>
+  <artifactId>cloudsim-hho</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>HHO Task Scheduling on CloudSim</name>
+  <description>
+    Pengujian Harris Hawks Optimization (Heidari dkk., FGCS 97:849-872, 2019)
+    untuk penjadwalan task di lingkungan cloud, disimulasikan dengan CloudSim.
+    Mencakup test case korektheid, benchmark fungsi F1-F23, benchmark
+    penjadwalan terhadap baseline, dan performance test.
+  </description>
+
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <junit.version>5.10.2</junit.version>
+  </properties>
+
+  <dependencies>
+    <!-- CloudSim Plus: fork CloudSim yang terbit di Maven Central sehingga
+         build-nya reprodusibel. CloudSim klasik org.cloudbus:cloudsim:4.0
+         tidak tersedia di Maven Central (terverifikasi HTTP 404). -->
+    <dependency>
+      <groupId>org.cloudsimplus</groupId>
+      <artifactId>cloudsimplus</artifactId>
+      <version>8.5.7</version>
+    </dependency>
+
+    <!-- Uji statistik: Wilcoxon rank-sum / Mann-Whitney U -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-math3</artifactId>
+      <version>3.6.1</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.2.0</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

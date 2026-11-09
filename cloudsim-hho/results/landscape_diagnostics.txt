@@ -1,0 +1,5 @@
+tasks=100 vms=20
+lower_bound=3092.6053
+maxmin=3210.9637
+maxmin_after_local_search=3210.9637
+hho_unique_schedules=10372 of 32224 evaluations

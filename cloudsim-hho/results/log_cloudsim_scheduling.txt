@@ -1,0 +1,73 @@
+BENCHMARK PENJADWALAN CLOUDSIM  |  5 datacenter, 20 VM, N=30, T=500, run=10
+Konfigurasi mengikuti EHHO (IJACSA 15(7) 2024, Tabel I).
+
+========================================================================================================
+TASK = 100   VM = 20
+--------------------------------------------------------------------------------------------------------
+Algoritma  Jenis      Makespan     STD          Respons    Utilisasi  Imbalance  Waktu(ms)  vs HHO  
+FCFS       heuristik  3531.57      0.00         1818.04    0.8591     0.3076     0.0        -       
+SJF        heuristik  3544.25      0.00         1861.28    0.8540     0.5293     0.0        -       
+RR         heuristik  9189.63      0.00         2133.07    0.3876     2.1736     0.0        +       
+MinMin     heuristik  3544.25      0.00         1861.28    0.8540     0.5293     0.0        -       
+MaxMin     heuristik  3211.66      0.00         1851.86    0.9705     0.1025     0.0        -       
+HHO        metaheuristik 4551.98      213.58       2035.76    0.7046     1.0489     132.1      -       
+PSO        metaheuristik 4112.81      163.97       1978.37    0.7677     0.8715     52.5       -       
+GA         metaheuristik 4120.99      180.90       1975.82    0.7659     0.9294     79.3       -       
+DE         metaheuristik 4879.77      181.75       2099.79    0.6637     1.2247     44.2       +       
+
+Batas bawah teoretis makespan: 3092.61 s (total beban / total kapasitas)
+HHO terhadap batas bawah: 47.2% di atasnya | perbaikan atas FCFS: -28.89%
+
+========================================================================================================
+TASK = 200   VM = 20
+--------------------------------------------------------------------------------------------------------
+Algoritma  Jenis      Makespan     STD          Respons    Utilisasi  Imbalance  Waktu(ms)  vs HHO  
+FCFS       heuristik  7351.04      0.00         3707.16    0.9259     0.1967     0.0        -       
+SJF        heuristik  7460.37      0.00         3753.58    0.9195     0.1645     0.0        -       
+RR         heuristik  18171.11     0.00         4531.23    0.4569     1.7469     0.0        +       
+MinMin     heuristik  7460.37      0.00         3753.58    0.9195     0.1645     0.0        -       
+MaxMin     heuristik  7085.46      0.00         3756.76    0.9655     0.0891     0.0        -       
+HHO        metaheuristik 9779.75      601.29       4110.19    0.7439     0.9923     171.0      -       
+PSO        metaheuristik 8875.60      342.36       3957.87    0.7891     0.7935     61.0       -       
+GA         metaheuristik 8654.16      186.16       3877.89    0.8125     0.6436     85.3       -       
+DE         metaheuristik 9921.85      316.87       4093.30    0.7152     1.0446     54.0       =       
+
+Batas bawah teoretis makespan: 6881.65 s (total beban / total kapasitas)
+HHO terhadap batas bawah: 42.1% di atasnya | perbaikan atas FCFS: -33.04%
+
+========================================================================================================
+TASK = 500   VM = 20
+--------------------------------------------------------------------------------------------------------
+Algoritma  Jenis      Makespan     STD          Respons    Utilisasi  Imbalance  Waktu(ms)  vs HHO  
+FCFS       heuristik  15713.72     0.00         7895.75    0.9611     0.0905     0.0        -       
+SJF        heuristik  15669.45     0.00         7953.80    0.9571     0.1012     0.0        -       
+RR         heuristik  42693.32     0.00         10542.45   0.4696     1.7230     0.0        +       
+MinMin     heuristik  15669.45     0.00         7953.80    0.9571     0.1012     0.0        -       
+MaxMin     heuristik  15400.11     0.00         7930.94    0.9886     0.0171     0.0        -       
+HHO        metaheuristik 27058.11     1257.36      9186.69    0.6443     1.1262     409.8      -       
+PSO        metaheuristik 23152.89     1142.37      8709.56    0.7122     0.9139     149.7      -       
+GA         metaheuristik 22004.24     1041.79      8582.56    0.7530     0.8258     189.5      -       
+DE         metaheuristik 30364.84     2200.47      9249.69    0.5808     1.3516     122.5      +       
+
+Batas bawah teoretis makespan: 15221.90 s (total beban / total kapasitas)
+HHO terhadap batas bawah: 77.8% di atasnya | perbaikan atas FCFS: -72.19%
+
+========================================================================================================
+TASK = 1000   VM = 20
+--------------------------------------------------------------------------------------------------------
+Algoritma  Jenis      Makespan     STD          Respons    Utilisasi  Imbalance  Waktu(ms)  vs HHO  
+FCFS       heuristik  37708.68     0.00         19069.25   0.9832     0.0357     0.0        -       
+SJF        heuristik  37806.42     0.00         19138.03   0.9777     0.0515     0.0        -       
+RR         heuristik  79270.24     0.00         25376.68   0.6224     1.2189     0.0        +       
+MinMin     heuristik  37806.42     0.00         19138.03   0.9777     0.0515     0.0        -       
+MaxMin     heuristik  37387.77     0.00         19132.59   0.9956     0.0105     0.0        -       
+HHO        metaheuristik 59889.72     1906.53      22754.12   0.7039     1.0974     869.2      -       
+PSO        metaheuristik 68024.81     2329.80      23991.50   0.6690     1.2337     409.4      +       
+GA         metaheuristik 60766.94     1892.50      22358.14   0.7278     0.9911     386.3      =       
+DE         metaheuristik 67521.81     1928.21      23228.39   0.6637     1.1423     263.7      +       
+
+Batas bawah teoretis makespan: 37226.21 s (total beban / total kapasitas)
+HHO terhadap batas bawah: 60.9% di atasnya | perbaikan atas FCFS: -58.82%
+
+Tersimpan: results/cloudsim_scheduling.csv
+EXIT=0
